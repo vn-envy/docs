@@ -1,0 +1,430 @@
+---
+title: "Leadsy Flock API Reference"
+sidebarTitle: "API Reference"
+description: "Complete reference for Leadsy Flock's JSON API — campaign creation, approval, consent recording, media slots, and Flo's ADK tools for developers."
+---
+
+The Leadsy Flock API lets you create campaigns, trigger the pipeline, record consent, and retrieve creative assets programmatically. All JSON API endpoints are under `/v1/`. The UI endpoints (`/`, `/r/{id}`, `/k/{id}`, `/l/{id}`, `/dash`, `/trace`) serve HTML and are documented separately in the quickstart.
+
+All requests that accept a body expect `Content-Type: application/json`. All responses are JSON unless otherwise noted.
+
+## Campaigns
+
+### Create a campaign
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://your-flock-domain/v1/campaigns \
+  -H "Content-Type: application/json" \
+  -d '{
+    "listing_url": "https://share.google/rLF34cfolz9TJA92F",
+    "business_name": "Glen'\''s Bakehouse",
+    "geo": "Gurgaon, Haryana",
+    "goal": "footfall",
+    "audience": "families and office workers nearby",
+    "budget_inr": 6000,
+    "deadline": "2026-09-15"
+  }'
+```
+```python Python
+import httpx
+
+response = httpx.post(
+    "https://your-flock-domain/v1/campaigns",
+    json={
+        "listing_url": "https://share.google/rLF34cfolz9TJA92F",
+        "business_name": "Glen's Bakehouse",
+        "geo": "Gurgaon, Haryana",
+        "goal": "footfall",
+        "audience": "families and office workers nearby",
+        "budget_inr": 6000,
+        "deadline": "2026-09-15",
+    },
+)
+data = response.json()
+```
+</CodeGroup>
+
+**Request body**
+
+<ParamField body="listing_url" type="string" required>
+  Google listing URL, Google Maps share link, or website URL for the shop you own. The pipeline reads this to build the BrandSpec.
+</ParamField>
+
+<ParamField body="business_name" type="string" required>
+  Trading name of the shop — used in copy and on the Stella landing page.
+</ParamField>
+
+<ParamField body="geo" type="string" required>
+  City and area in India (for example, `"Gurgaon, Haryana"`). Determines the Indic language used in bilingual copy.
+</ParamField>
+
+<ParamField body="goal" type="string" required>
+  Campaign goal. Common values: `"footfall"`, `"online_orders"`, `"awareness"`, `"leads"`.
+</ParamField>
+
+<ParamField body="audience" type="string" required>
+  Plain-language audience description. For example: `"families with children under 12 within 5 km"`.
+</ParamField>
+
+<ParamField body="budget_inr" type="integer" required>
+  Total campaign budget in Indian rupees. Bri uses this to recommend the right bundle tier.
+</ParamField>
+
+<ParamField body="deadline" type="string">
+  ISO 8601 date by which the campaign kit must be ready. For example: `"2026-09-15"`.
+</ParamField>
+
+<ParamField body="website" type="string">
+  Shop website URL if different from `listing_url`. Scout will read both.
+</ParamField>
+
+**Response**
+
+<ResponseField name="campaign_id" type="string">
+  Unique campaign identifier. Used in all subsequent API calls and in the UI URLs (`/r/{id}`, `/k/{id}`, `/l/{id}`).
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Campaign status at creation. Always `"planned"` on a successful POST.
+</ResponseField>
+
+<ResponseField name="plan" type="object">
+  Campaign plan returned by Bri.
+
+  <Expandable title="plan fields">
+    <ResponseField name="plan.bundle" type="string">
+      Recommended bundle: `"find"`, `"launch"`, or `"full"`.
+    </ResponseField>
+    <ResponseField name="plan.agents" type="array">
+      List of agent names that will run (for example, `["scout", "inka", "stella"]`).
+    </ResponseField>
+    <ResponseField name="plan.price_inr" type="integer">
+      Total campaign price in Indian rupees.
+    </ResponseField>
+    <ResponseField name="plan.price_breakdown" type="object">
+      Per-agent cost breakdown. Keys are agent names; values are rupee amounts.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="run_room_url" type="string">
+  Full URL to the live run room: `/r/{campaign_id}`.
+</ResponseField>
+
+---
+
+### Approve a campaign (YES)
+
+Approving a campaign starts the async pipeline. This is the expensive door — Scout, Inka, and all downstream agents begin running immediately after this call returns.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://your-flock-domain/v1/campaigns/{id}/approve
+```
+```python Python
+response = httpx.post(
+    f"https://your-flock-domain/v1/campaigns/{campaign_id}/approve"
+)
+```
+</CodeGroup>
+
+<ParamField path="id" type="string" required>
+  Campaign ID returned by `POST /v1/campaigns`.
+</ParamField>
+
+<ParamField body="forceRetry" type="boolean">
+  Set to `true` to force a re-run of steps that already have an `ok` receipt. Use this only if you need to regenerate an already-completed step (for example, after editing blocked copy). Defaults to `false`.
+</ParamField>
+
+**Response**
+
+<ResponseField name="campaign_id" type="string">
+  The campaign ID that was approved.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Always `"running"` on a successful approval.
+</ResponseField>
+
+<ResponseField name="pubsub_message_id" type="string">
+  ID of the Pub/Sub message sent to `campaign-steps`. Use this to correlate with Cloud Trace spans.
+</ResponseField>
+
+---
+
+### Get a campaign
+
+<CodeGroup>
+```bash cURL
+curl https://your-flock-domain/v1/campaigns/{id}
+```
+```python Python
+response = httpx.get(f"https://your-flock-domain/v1/campaigns/{campaign_id}")
+```
+</CodeGroup>
+
+**Response**
+
+<ResponseField name="campaign_id" type="string">
+  Unique campaign identifier.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current campaign status: `"planned"`, `"running"`, `"complete"`, `"blocked_creative"`, or `"error"`.
+</ResponseField>
+
+<ResponseField name="brief" type="object">
+  The structured campaign brief (business name, geo, goal, audience, budget, deadline).
+</ResponseField>
+
+<ResponseField name="plan" type="object">
+  Bundle recommendation and price breakdown from Bri (same shape as in the POST response).
+</ResponseField>
+
+<ResponseField name="receipts" type="array">
+  Array of Firestore receipt objects, one per pipeline step.
+
+  <Expandable title="receipt fields">
+    <ResponseField name="receipts[].step" type="string">
+      Step name: `"scout"`, `"inka"`, `"inka_harvest"`, `"creative_gate"`, `"stella"`, or `"ad_kit"`.
+    </ResponseField>
+    <ResponseField name="receipts[].status" type="string">
+      Step status: `"started"`, `"ok"`, `"polling"`, `"blocked_creative"`, or `"error"`.
+    </ResponseField>
+    <ResponseField name="receipts[].timestamp" type="string">
+      ISO 8601 timestamp of the last status update.
+    </ResponseField>
+    <ResponseField name="receipts[].trace_id" type="string">
+      Cloud Trace trace ID for this step span. Use with `/trace` or Cloud Trace Explorer.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="kit_url" type="string">
+  URL of the paste kit (`/k/{campaign_id}`). Present only when `status` is `"complete"`.
+</ResponseField>
+
+<ResponseField name="autopost" type="boolean">
+  Always `false`. Included in the response as an explicit confirmation that Leadsy Flock has not posted anything on your behalf.
+</ResponseField>
+
+---
+
+### List all campaigns
+
+<CodeGroup>
+```bash cURL
+curl https://your-flock-domain/v1/campaigns
+```
+</CodeGroup>
+
+Returns an array of campaign summary objects. Each object contains `campaign_id`, `status`, `business_name`, `created_at`, and `kit_url` (if complete).
+
+---
+
+## Consent
+
+### Record opt-in consent
+
+Call this endpoint when a visitor submits the Stella landing page opt-in form. The form POSTs here automatically — you only need to call this directly if you are building a custom landing page.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://your-flock-domain/v1/consents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "campaign_id": "google-listing-eaf57cae",
+    "name": "Priya Sharma",
+    "phone": "+91 98765 43210",
+    "consent": true,
+    "utm_source": "meta",
+    "utm_medium": "paid",
+    "utm_content": "meta_feed"
+  }'
+```
+</CodeGroup>
+
+<ParamField body="campaign_id" type="string" required>
+  The campaign this consent record belongs to.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Visitor's name as entered in the opt-in form.
+</ParamField>
+
+<ParamField body="phone" type="string">
+  Visitor's phone number (optional but required for Ray outreach).
+</ParamField>
+
+<ParamField body="email" type="string">
+  Visitor's email address (optional).
+</ParamField>
+
+<ParamField body="consent" type="boolean" required>
+  Must be `true`. The API rejects requests with `consent: false` or without this field.
+</ParamField>
+
+<ParamField body="utm_source" type="string">
+  UTM source from the landing page URL (for example, `"meta"`).
+</ParamField>
+
+<ParamField body="utm_medium" type="string">
+  UTM medium (for example, `"paid"`).
+</ParamField>
+
+<ParamField body="utm_content" type="string">
+  UTM content slot (for example, `"meta_feed"`).
+</ParamField>
+
+**Response**
+
+<ResponseField name="consent_id" type="string">
+  Unique ID for this consent record. Stored in Firestore.
+</ResponseField>
+
+<ResponseField name="campaign_id" type="string">
+  The campaign this record belongs to.
+</ResponseField>
+
+<ResponseField name="recorded_at" type="string">
+  ISO 8601 timestamp of when consent was recorded.
+</ResponseField>
+
+---
+
+## Media
+
+### Get slot readiness map
+
+<CodeGroup>
+```bash cURL
+curl https://your-flock-domain/media/{id}/ready
+```
+</CodeGroup>
+
+Returns a JSON map of all media slots and whether each is ready to download.
+
+**Response**
+
+<ResponseField name="campaign_id" type="string">
+  Campaign identifier.
+</ResponseField>
+
+<ResponseField name="slots" type="object">
+  Map of slot name to readiness status.
+
+  <Expandable title="slot names">
+    Each key is a slot name (`still`, `still-feed`, `still-square`, `still-story`, `still-landscape`, `clip`, `clip-feed`, `clip-square`, `clip-story`, `clip-landscape`, `clip-en`, `clip-indic`). Each value is a `ready` boolean and a `url` string (present only when `ready: true`).
+  </Expandable>
+</ResponseField>
+
+---
+
+## Cost observatory
+
+### Get cost snapshot (JSON)
+
+<CodeGroup>
+```bash cURL
+curl https://your-flock-domain/v1/dash
+```
+</CodeGroup>
+
+**Response**
+
+<ResponseField name="campaign_id" type="string">
+  Campaign the snapshot covers (most recent if no query param).
+</ResponseField>
+
+<ResponseField name="total_usd" type="number">
+  Total Vertex list-price burn in USD.
+</ResponseField>
+
+<ResponseField name="total_inr" type="number">
+  Total Vertex list-price burn in INR (converted at the rate used by the observatory).
+</ResponseField>
+
+<ResponseField name="breakdown" type="array">
+  Line items per model call, each with `model`, `call_type`, `tokens_in`, `tokens_out`, `duration_s` (for Veo), and `cost_usd`.
+</ResponseField>
+
+---
+
+## Text safety check
+
+### Screen text with Model Armor
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://your-flock-domain/v1/screen \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Our gym guarantees you lose 10 kg in 30 days or your money back."}'
+```
+</CodeGroup>
+
+<ParamField body="text" type="string" required>
+  Text to screen. This is the same check that runs on all user-submitted input before it reaches any model.
+</ParamField>
+
+**Response**
+
+<ResponseField name="safe" type="boolean">
+  `true` if the text passes Model Armor and the Ledge regex check. `false` if it contains prohibited content.
+</ResponseField>
+
+<ResponseField name="flags" type="array">
+  Array of flag objects, each with `rule` (the regex or classifier rule that fired) and `excerpt` (the flagged substring).
+</ResponseField>
+
+---
+
+## Flo ADK tools
+
+If you are building a custom chat interface that connects to Flo, these are the tools available to the agent. They are called internally by the ADK session — you do not call them directly over HTTP.
+
+<Accordion title="list_flock()">
+  Returns the current flock roster with each agent's name, role, and status.
+
+  **No parameters.**
+
+  **Returns:** Array of agent objects with `name`, `role`, and `available` fields.
+</Accordion>
+
+<Accordion title="now_ist()">
+  Returns the current time in Indian Standard Time (IST, UTC+5:30).
+
+  **No parameters.**
+
+  **Returns:** ISO 8601 timestamp string in IST.
+</Accordion>
+
+<Accordion title="recommend_team(business_name, geo, goal, budget_inr, audience, deadline, website)">
+  Calls Bri to map the campaign brief to a bundle and calculate the rupee price. Flo calls this after collecting all required brief fields from the conversation.
+
+  | Parameter | Type | Required | Description |
+  |-----------|------|----------|-------------|
+  | `business_name` | string | Yes | Trading name of the shop |
+  | `geo` | string | Yes | City and area (for example, `"Gurgaon, Haryana"`) |
+  | `goal` | string | Yes | Campaign goal |
+  | `budget_inr` | integer | Yes | Budget in rupees |
+  | `audience` | string | Yes | Target audience description |
+  | `deadline` | string | No | ISO 8601 date |
+  | `website` | string | No | Shop website URL |
+
+  **Returns:** Bundle recommendation, itemised price, and a draft `campaign_id`.
+</Accordion>
+
+<Accordion title="approve_plan(campaign_id)">
+  Sends the YES signal that starts the async pipeline. Flo only calls this after the owner has explicitly confirmed the plan and price in the chat session.
+
+  | Parameter | Type | Required | Description |
+  |-----------|------|----------|-------------|
+  | `campaign_id` | string | Yes | Campaign ID from `recommend_team` |
+
+  **Returns:** `{ "status": "running", "run_room_url": "/r/{campaign_id}" }`
+
+  <Warning>
+    This tool starts billable model calls immediately. Flo only calls it after a human confirmation step — it should never be called speculatively or in a test context against a live environment.
+  </Warning>
+</Accordion>

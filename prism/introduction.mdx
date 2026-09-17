@@ -1,0 +1,80 @@
+---
+title: "PRISM: Six Sigma LLM Qualification Engine"
+sidebarTitle: "Introduction"
+description: "PRISM applies industrial Six Sigma SPC to LLM selection — measure process capability with Cpk, DPMO, and Gauge R&R instead of leaderboard averages."
+---
+
+PRISM (Process Reliability Index for Supplier Models) is the first tool to apply Six Sigma Statistical Process Control to LLM evaluation. Instead of ranking models by their average score — a metric every leaderboard uses — PRISM measures **process capability**: how consistently a model stays above your minimum quality bar on every single call. A model that scores 95% on average but varies wildly is worse for production than one that scores 90% every time. PRISM gives you the statistics to prove it.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/prism/quickstart">
+    Run your first evaluation in demo mode — no API keys required. Get Cpk, DPMO, and a ranked model list in under 90 seconds.
+  </Card>
+  <Card title="Six Sigma Methodology" icon="chart-line" href="/prism/six-sigma-methodology">
+    Understand why Cpk beats mean score for production LLM selection and how DPMO translates to real defect rates.
+  </Card>
+  <Card title="Model Evaluation" icon="flask" href="/prism/model-evaluation">
+    Learn how PRISM translates your plain-English intent into a CTQ spec, runs 5-trial measurements, and computes a MatchScore.
+  </Card>
+  <Card title="API Reference" icon="code" href="/prism/api-reference">
+    Integrate PRISM into your CI pipeline. Full reference for POST /measure and GET /health with request and response schemas.
+  </Card>
+</CardGroup>
+
+## The Core Insight
+
+<Warning>
+  **Ranking by mean score is dangerous for production systems.** Every public leaderboard ranks Model B higher in the example below. Every quality engineer ranks Model A higher. PRISM ranks like a quality engineer.
+</Warning>
+
+| Model | μ (mean) | σ (std dev) | Cpk | Verdict |
+|-------|----------|-------------|-----|---------|
+| Model A | 92% | 2% | **1.17** | Marginal — monitor closely |
+| Model B | 95% | 8% | **0.42** | Incapable — will break in production |
+
+Model B's high average hides a fatal flaw: its variance is so wide that a large fraction of calls will fall below any reasonable quality floor. Model A delivers fewer perfect outputs, but it almost never fails. **PRISM ranks by Cpk, not by μ.**
+
+## Cpk Verdict Table
+
+Cpk is the Process Capability Index — the number of standard deviations between your model's mean score and your Lower Specification Limit (LSL), divided by 3. Use this table to interpret every PRISM result.
+
+| Cpk Range | Verdict | Meaning |
+|-----------|---------|---------|
+| ≥ 1.67 | **Excellent** ✨ | Six Sigma capable — world-class consistency |
+| ≥ 1.33 | **Production-grade** ✅ | Safe to ship; fewer than 6,210 defects per million calls |
+| ≥ 1.00 | **Marginal** ⚠️ | Monitor closely; some calls will fall below your quality bar |
+| ≥ 0.67 | **Poor** 🔴 | Expect visible defects in production |
+| < 0.67 | **Incapable** ❌ | Do not use; process cannot meet your specification |
+
+## What PRISM Measures
+
+For every candidate model evaluated against your intent, PRISM computes a full Six Sigma quality report:
+
+<CardGroup cols={2}>
+  <Card title="Cpk" icon="gauge">
+    Process Capability Index. Measures how far your model's mean score sits above your quality floor, in sigma units. The primary ranking signal.
+  </Card>
+  <Card title="DPMO" icon="bug">
+    Defects Per Million Opportunities. A universal Six Sigma metric that tells you exactly how many of a million LLM calls will fall below spec.
+  </Card>
+  <Card title="Gauge R&R" icon="scale-balanced">
+    Measurement system reliability. Validates that the 3-judge scoring panel agrees before trusting its verdicts. Must be below 30%.
+  </Card>
+  <Card title="MatchScore" icon="star">
+    Bayesian posterior blending 70% measured results with 30% HuggingFace leaderboard priors. The final ranking metric.
+  </Card>
+</CardGroup>
+
+## How the Measurement Works
+
+PRISM runs a five-step pipeline automatically whenever you submit an intent:
+
+1. **VoC → CTQ**: Your plain-English intent is translated into measurable specification limits (LSL, USL, target score per dimension).
+2. **5-trial measurement**: Each candidate model runs 5 independent trials against a locked, SHA-pinned test generator.
+3. **3-judge scoring**: A Gauge R&R panel (GPT-4o, GPT-4o-mini, Llama 3.3 70B) scores each output across four CTQ dimensions.
+4. **Six Sigma statistics**: PRISM computes μ, σ, Cpk, DPMO, sigma level, and Gauge R&R % for each model.
+5. **Bayesian MatchScore**: Results are blended with HuggingFace leaderboard priors and ranked by MatchScore descending.
+
+<Info>
+  PRISM's evaluator rubric and test generator are SHA-pinned at commit `937202df`. Evaluation criteria were locked before any model results existed, ensuring no post-hoc tuning.
+</Info>

@@ -1,0 +1,114 @@
+---
+title: "Smriti: Local-First Memory Layer for AI Agents"
+sidebarTitle: "Introduction"
+description: "Smriti gives your AI agents persistent, bi-temporal memory backed by a single SQLite file — no cloud account, Docker, or external database required."
+---
+
+Smriti (स्मृति — Sanskrit for *"that which is remembered"*) is a zero-infrastructure, local-first memory layer for AI agents. It stores everything your agent knows and experiences in one portable SQLite file, giving you persistent, inspectable, bi-temporal memory with no Postgres, Neo4j, Redis, Docker, or cloud account required. Whether you're building a personal assistant, a coding agent, or a multi-turn chatbot, Smriti handles the memory so you can focus on the logic.
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/smriti/quickstart">
+    Add memory to your agent in under 5 minutes with a working code example.
+  </Card>
+  <Card title="Installation" icon="download" href="/smriti/installation">
+    Install Smriti, configure environment variables, and pick your embedder.
+  </Card>
+  <Card title="MCP Server" icon="plug" href="/smriti/mcp-server">
+    Drop Smriti into Claude Code, Cursor, or any MCP-compatible agent in one command.
+  </Card>
+  <Card title="API Reference" icon="code" href="/smriti/api-reference">
+    Explore every method, parameter, and return type in the Smriti Python API.
+  </Card>
+</CardGroup>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Zero Infrastructure" icon="database">
+    One SQLite file is everything. No cluster to provision, no version-matching between services, and no cloud account to create. `pip install smriti-agents` and you're done.
+  </Card>
+  <Card title="Bi-Temporal Memory" icon="clock">
+    Facts are never deleted — they're superseded with validity windows. Ask "where does the user live now?" and "where did they live before June?" against the same store.
+  </Card>
+  <Card title="Four-Channel Retrieval" icon="magnifying-glass">
+    Lexical (BM25), semantic (vector), entity (graph traversal), and temporal channels fuse via Reciprocal Rank Fusion to surface the most relevant context every time.
+  </Card>
+  <Card title="MCP Server" icon="plug">
+    Run `smriti-mcp --db memory.db` to expose six typed memory tools to any MCP-compatible agent — no extra dependencies, no auth service, fully offline by default.
+  </Card>
+</CardGroup>
+
+## Two modes
+
+Smriti offers two operating modes so you can trade write-time cost against retrieval precision. Choose the mode that fits your infrastructure constraints and quality requirements.
+
+<Tabs>
+  <Tab title="Lite mode (laghu)">
+    **Lite mode** — also aliased as `laghu` (लघु, Sanskrit for *"light"*) — ingests conversations as raw episodes and indexes them for four-channel hybrid retrieval. No LLM call is made at write time, which means:
+
+    - Fully **offline**: no API keys, no network required
+    - Near-zero write cost regardless of conversation volume
+    - Strong recall from BM25 + vector + entity + temporal fusion
+    - Best for privacy-sensitive deployments, CI pipelines, and constrained environments
+
+    ```python
+    from smriti import Smriti, HashEmbedder
+
+    mem = Smriti(path="memory.db", embedder=HashEmbedder())
+    # mode defaults to "lite" when no llm is provided
+    ```
+
+    <Note>
+      Lite mode stores the full conversation transcript and retrieves it via all four channels. It won't extract structured facts like "user lives in Bengaluru," but it will surface the relevant episodes when you query for that information.
+    </Note>
+  </Tab>
+  <Tab title="Full mode (purna)">
+    **Full mode** — also aliased as `purna` (पूर्ण, Sanskrit for *"complete"*) — adds LLM-based fact extraction and temporal supersession on top of everything lite mode provides. Each session ingestion makes one extraction call to your configured LLM, which means:
+
+    - Structured facts are extracted and stored with validity windows
+    - Conflicting facts (e.g. a new home city) automatically supersede old ones
+    - Both raw episodes **and** extracted facts are available at retrieval time
+    - Works with Ollama, OpenAI, vLLM, LM Studio, Groq, DeepSeek, and OpenRouter
+
+    ```python
+    from smriti import Smriti, LLM, OllamaEmbedder
+
+    mem = Smriti(
+        path="memory.db",
+        embedder=OllamaEmbedder("nomic-embed-text"),
+        llm=LLM("qwen3:14b", provider="ollama"),
+        mode="full",
+    )
+    ```
+
+    <Tip>
+      Full mode's fact extraction quality depends on your configured LLM. A larger, instruction-following model like `qwen3:14b` or `llama3.1:8b` will produce better-structured facts than a smaller one.
+    </Tip>
+  </Tab>
+</Tabs>
+
+## How retrieval works
+
+When you call `mem.context()` or `mem.search()`, Smriti runs your query through all four retrieval channels in parallel and fuses the results using Reciprocal Rank Fusion (RRF):
+
+| Channel | What it searches | Best for |
+|---|---|---|
+| **Lexical** (BM25 / FTS5) | Full-text keyword index over episodes and facts | Exact phrases, names, specific terms |
+| **Semantic** (vector / numpy) | Cosine similarity against stored embeddings | Paraphrases, conceptual matches |
+| **Entity** (graph traversal) | Hop through entity relationship links | "Who works with Rachel?", connections |
+| **Temporal** | Date-anchored proximity scoring | "What happened in March?", before/after |
+
+You can select individual channels or use named **retrieval profiles** (`facts`, `relations`, `timeline`, `deep`, `auto`) to shape each query independently — right down to which channels fire.
+
+## Project details
+
+<CardGroup cols={2}>
+  <Card title="Version" icon="tag">
+    0.3.2 Alpha — Apache-2.0 licensed. The temporal model, entity graph, retrieval profiles, and benchmark harness are all included with no paid tier.
+  </Card>
+  <Card title="Dependencies" icon="box">
+    Python 3.9+ with stdlib and `numpy` as the only required dependencies. Optional: any OpenAI-compatible LLM endpoint and any embedding model.
+  </Card>
+</CardGroup>

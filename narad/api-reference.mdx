@@ -1,0 +1,381 @@
+---
+title: "Narad REST and SSE API: Complete Endpoint Reference"
+sidebarTitle: "API Reference"
+description: "Full reference for Narad's FastAPI server at http://127.0.0.1:8000 — POST /chat SSE stream, sutras, kanban, quality, voice, and connection endpoints."
+---
+
+Narad exposes a FastAPI server at `http://127.0.0.1:8000`. All endpoints return JSON. The `/chat` endpoint is special: it returns a Server-Sent Events (SSE) stream so you receive avatar output in real time as it is generated. Every other endpoint is a standard REST call that returns immediately.
+
+If `NARAD_AUTH` is set to `local` or `strict`, include your API token in every request:
+
+```bash
+curl -H "Authorization: Bearer $(cat ~/.narad/config/api_token)" \
+     http://127.0.0.1:8000/sutras
+```
+
+---
+
+## POST /chat
+
+Send a query to Narad and receive a real-time SSE stream of avatar activity. This is the primary endpoint for all conversational interaction.
+
+### Request Body
+
+<ParamField body="query" type="string" required>
+  The user's message or instruction. Must not be empty.
+</ParamField>
+
+<ParamField body="session_id" type="string">
+  An optional session identifier. If you omit it, Narad generates a new UUID. Pass the same `session_id` on follow-up turns to continue a conversation, or to re-attach to a still-running background task after a disconnect.
+</ParamField>
+
+<ParamField body="user_id" type="string" default="default">
+  Identifies the user for rate limiting, memory scoping, and per-user style preferences. Use a stable identifier such as a username or UUID.
+</ParamField>
+
+<ParamField body="images" type="string[]">
+  Optional array of base64-encoded image strings to pass as context alongside the query.
+</ParamField>
+
+<ParamField body="active_artifact_id" type="string">
+  ID of an open learning artifact (flashcard deck, concept diagram) to make editable in this turn.
+</ParamField>
+
+<ParamField body="active_artifact_workspace_id" type="string">
+  The workspace ID that owns the artifact referenced by `active_artifact_id`.
+</ParamField>
+
+<ParamField body="active_artifact_type" type="string">
+  Type hint for the active artifact (`flashcard` / `concept_diagram`).
+</ParamField>
+
+### SSE Event Types
+
+Each event is a JSON-encoded string. Read the `type` field to determine how to handle the payload.
+
+<Tabs>
+  <Tab title="Core events">
+    | Event type | When it fires | Key `data` fields |
+    |------------|--------------|-------------------|
+    | `avatar_start` | An avatar begins processing | `avatar`, `session_id`, `step` |
+    | `avatar_done` | An avatar finishes | `avatar`, `latency_ms`, `token_count` |
+    | `narad_synthesis` | Narad emits synthesised text | `text` (string chunk) |
+    | `done` | The full session is complete | `session_id`, `runtime_epoch_id` |
+    | `error` | A recoverable or fatal error occurred | `message` |
+  </Tab>
+  <Tab title="Plan & kanban">
+    | Event type | When it fires | Key `data` fields |
+    |------------|--------------|-------------------|
+    | `kanban_update` | A plan step changes state | `session_id`, `step_id`, `status`, `owner` |
+    | `thread_restored` | Prior conversation context was rehydrated | `session_id`, `turn_count`, `thread_summary` |
+  </Tab>
+  <Tab title="Quality & alerts">
+    | Event type | When it fires | Key `data` fields |
+    |------------|--------------|-------------------|
+    | `andon_alert` | The Andon quality gate fired | `avatar`, `trigger`, `session_id` |
+    | `andon_diagnosis` | Parashurama completed an Andon diagnosis | `avatar`, `trigger`, `diagnosis` |
+    | `context_budget` | Context window budget report for this turn | `predicted_input_tokens`, `hard_input_budget_tokens` |
+    | `context_compacted` | Context was compacted before sending | `reasons`, `compaction_applied` |
+  </Tab>
+  <Tab title="Learning">
+    | Event type | When it fires | Key `data` fields |
+    |------------|--------------|-------------------|
+    | `guru_check` | Learner answer was graded | `atom_id`, `correct`, `feedback` |
+    | `artifact_opened` | A new learning artifact was created | `artifact_id`, `artifact_type`, `topic` |
+    | `artifact_updated` | An existing artifact was edited | `artifact_id`, `artifact_type` |
+    | `narad_recall` | Supervisor-level memory recall ran | `provenance`, `token_budget` |
+  </Tab>
+</Tabs>
+
+### Consuming the SSE Stream
+
+<CodeGroup>
+  ```python Python
+  import httpx
+  import json
+
+  BASE = "http://127.0.0.1:8000"
+  TOKEN = open("/Users/you/.narad/config/api_token").read().strip()
+
+  with httpx.stream(
+      "POST",
+      f"{BASE}/chat",
+      headers={"Authorization": f"Bearer {TOKEN}"},
+      json={
+          "query": "Write a Python function that reverses a linked list",
+          "user_id": "alice",
+      },
+      timeout=None,
+  ) as resp:
+      for line in resp.iter_lines():
+          if not line.startswith("data:"):
+              continue
+          payload = json.loads(line[5:].strip())
+          event_type = payload.get("type")
+          if event_type == "narad_synthesis":
+              print(payload["data"]["text"], end="", flush=True)
+          elif event_type == "avatar_start":
+              print(f"\n[{payload['data']['avatar']} started]")
+          elif event_type == "done":
+              print(f"\n[Session: {payload['data']['session_id']}]")
+              break
+          elif event_type == "error":
+              print(f"\nError: {payload['data']['message']}")
+              break
+  ```
+
+  ```javascript JavaScript
+  const token = await fetch("/api/token").then(r => r.text()); // your token source
+
+  const response = await fetch("http://127.0.0.1:8000/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      query: "Summarise my last three sessions",
+      user_id: "alice",
+    }),
+  });
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    const text = decoder.decode(value);
+    for (const line of text.split("\n")) {
+      if (!line.startsWith("data:")) continue;
+      const payload = JSON.parse(line.slice(5).trim());
+      if (payload.type === "narad_synthesis") {
+        process.stdout.write(payload.data.text);
+      }
+      if (payload.type === "done") break;
+    }
+  }
+  ```
+
+  ```bash cURL
+  curl -N \
+    -H "Authorization: Bearer $(cat ~/.narad/config/api_token)" \
+    -H "Content-Type: application/json" \
+    -d '{"query":"Hello Narad","user_id":"alice"}' \
+    http://127.0.0.1:8000/chat
+  ```
+</CodeGroup>
+
+---
+
+## Chat & Sessions
+
+<Accordion title="GET /trace/{session_id}">
+  Returns the full JSONL event trace for a completed session. Each entry in the `events` array is a structured avatar span with latency and token data.
+
+  **Path parameter:** `session_id` — the session UUID from the `done` event.
+
+  **Response fields:**
+  <ResponseField name="session_id" type="string">
+    The requested session identifier.
+  </ResponseField>
+  <ResponseField name="events" type="object[]">
+    Array of span objects. Each span includes `avatar`, `task`, `result_digest`, `latency_ms`, and `token_count`.
+  </ResponseField>
+  <ResponseField name="summary" type="object">
+    Aggregated view: list of avatars invoked, per-avatar latency map, and phase transitions.
+  </ResponseField>
+
+  ```bash
+  curl http://127.0.0.1:8000/trace/3f8a2c1d-...
+  ```
+</Accordion>
+
+<Accordion title="GET /chat/attach/{session_id}">
+  Re-attach to a still-running background task after a client disconnect (screen lock, network drop). Returns an SSE stream from the existing queue. Returns `404` if the task has already finished — in that case, query `/trace/{session_id}` for the completed result.
+</Accordion>
+
+---
+
+## Sutras & Learning
+
+<Accordion title="GET /sutras">
+  Returns all learned patterns — both pending and active — along with the current promotion threshold and cooldown settings.
+
+  **Response fields:**
+  <ResponseField name="sutras" type="object[]">
+    Array of sutra objects. Each entry includes `id`, `query`, `result`, `avatar`, `score`, `status` (`pending` or `active`), and `ts`.
+  </ResponseField>
+  <ResponseField name="settings" type="object">
+    Current Tapas settings: `promote_threshold`, `cooldown_hours`, `auto_promote_after_hours`.
+  </ResponseField>
+  <ResponseField name="summary" type="object">
+    Counts by status and avatar.
+  </ResponseField>
+</Accordion>
+
+<Accordion title="POST /sutras/{id}/accept">
+  Accept a pending sutra and make it active. Returns `404` if the sutra ID does not exist.
+
+  **Path parameter:** `id` — sutra UUID.
+
+  **Response:** `{"ok": true, "sutra_id": "...", "action": "accepted"}`
+</Accordion>
+
+<Accordion title="POST /sutras/{id}/revert">
+  Revert an active sutra back to pending state. This does not delete the sutra or its karma history. Returns `404` if the sutra ID does not exist.
+
+  **Path parameter:** `id` — sutra UUID.
+
+  **Response:** `{"ok": true, "sutra_id": "...", "action": "reverted"}`
+</Accordion>
+
+<Accordion title="GET /karma">
+  Returns the full audit trail of all sutra mutations (accepts, reverts, promotions). Use this to understand how your learned patterns have evolved over time.
+</Accordion>
+
+---
+
+## Planning & Kanban
+
+<Accordion title="GET /plan/{session_id}">
+  Returns Rama's structured project plan JSON for a session. The plan includes each step's title, owning avatar, dependencies, and current status. Returns `404` if no plan was generated for the session.
+
+  Plans are stored at `~/.narad/plans/<session_id>.json`.
+</Accordion>
+
+<Accordion title="GET /kanban/{session_id}">
+  Returns the kanban board for a specific session, including all steps grouped by column (`backlog`, `in_progress`, `review`, `done`, `blocked`), plus aggregate counts.
+</Accordion>
+
+<Accordion title="GET /kanban">
+  Returns all kanban sessions that have at least one step in `backlog`, `in_progress`, or `review`. Limited to the 20 most recently active sessions.
+
+  **Response:** `{"boards": [<board>, ...]}`
+</Accordion>
+
+---
+
+## Quality & Ops
+
+<Accordion title="GET /andon/log">
+  Returns the Andon alert history, newest first.
+
+  **Query parameter:** `limit` (integer, default `50`) — number of events to return.
+
+  Each entry includes `id`, `ts`, `avatar`, `trigger` (`EMPTY_RESULT` / `TIMEOUT` / `CONNECTION` / `TOOL_ERROR`), `session_id`, `task_preview`, and `result_preview`.
+</Accordion>
+
+<Accordion title="GET /andon/stats">
+  Returns aggregate Andon statistics for a rolling window.
+
+  **Query parameter:** `days` (integer, default `7`) — window in days.
+
+  **Response fields:**
+  <ResponseField name="total" type="integer">Total alerts in the period.</ResponseField>
+  <ResponseField name="by_avatar" type="object">Alert count per avatar name.</ResponseField>
+  <ResponseField name="by_class" type="object">Alert count per trigger type.</ResponseField>
+</Accordion>
+
+<Accordion title="GET /5s/report">
+  Returns the latest 5S filesystem health report for `~/.narad/`. The report identifies stale traces, orphaned artifacts, and oversized directories, along with a cleanliness score.
+</Accordion>
+
+<Accordion title="POST /5s/shine">
+  Runs the 5S cleanup routine.
+
+  **Query parameter:** `dry_run` (boolean, default `true`) — set to `false` to actually delete stale files. A dry run returns the list of files that would be removed without touching them.
+
+  ```bash
+  # Preview what would be cleaned
+  curl -X POST "http://127.0.0.1:8000/5s/shine?dry_run=true"
+
+  # Actually run the cleanup
+  curl -X POST "http://127.0.0.1:8000/5s/shine?dry_run=false"
+  ```
+</Accordion>
+
+<Accordion title="POST /quality/report">
+  Invokes Parashurama to generate a full DMAIC quality report covering the last 7 days of Andon events and session data. Generation takes 30–60 seconds. The report is saved to `~/.narad/wiki/<user_id>/quality/DMAIC_<date>.md` and cached in memory.
+
+  **Query parameter:** `user_id` (string, default `"default"`).
+
+  **Response fields:**
+  <ResponseField name="generated_at" type="string">ISO 8601 timestamp of report generation.</ResponseField>
+  <ResponseField name="report" type="string">Full DMAIC report text (five sections: Define, Measure, Analyse, Improve, Control).</ResponseField>
+  <ResponseField name="metrics" type="object">Raw metrics packet used to generate the report.</ResponseField>
+</Accordion>
+
+<Accordion title="GET /quality/report">
+  Returns the most recently generated DMAIC report from the in-memory cache. Returns `404` if no report has been generated yet in the current server process — call `POST /quality/report` first.
+</Accordion>
+
+---
+
+## Voice
+
+<Accordion title="GET /voice/status">
+  Returns the current voice engine availability: active TTS engine, full TTS tier list, STT engine, and the hardware device detected (`cpu` / `mps` / `cuda`).
+
+  ```json
+  {
+    "device": "mps",
+    "tts": {
+      "tiers": ["voxcpm", "kokoro"],
+      "active": "voxcpm"
+    },
+    "stt": {
+      "engine": "faster-whisper",
+      "available": true,
+      "model": "small"
+    }
+  }
+  ```
+
+  Use this endpoint to confirm voice configuration after changing `NARAD_TTS_ENGINE` or `NARAD_WHISPER_MODEL`.
+</Accordion>
+
+---
+
+## Connections
+
+<Accordion title="GET /connections">
+  Returns all stored provider connections from the Kunji keychain, plus subscription adapter status. Each connection entry shows the provider name, masked key, live-test result, and last-tested timestamp.
+</Accordion>
+
+<Accordion title="POST /connections">
+  Add a new API key. Narad auto-detects the provider from the key prefix and runs a live connectivity test before storing it in the system keychain.
+
+  **Request body:**
+  <ParamField body="key" type="string" required>
+    The raw API key string.
+  </ParamField>
+  <ParamField body="provider" type="string">
+    Optional provider name override. If omitted, Narad detects it from the key prefix.
+  </ParamField>
+  <ParamField body="validate" type="boolean" default="true">
+    Set to `false` to store the key without running a live test.
+  </ParamField>
+</Accordion>
+
+<Accordion title="POST /connections/import-env">
+  One-time migration that reads API keys from your `.env` file and stores them in the system keychain. Run this once after the initial setup to move from file-based to keychain-based key management. The operation is explicit and never runs silently.
+
+  ```bash
+  curl -X POST http://127.0.0.1:8000/connections/import-env
+  ```
+</Accordion>
+
+---
+
+## System
+
+<Accordion title="GET /tiers">
+  Returns hardware detection results and the model tier recommendation for your machine. The setup wizard and doctor both use this endpoint to guide model selection. The response includes detected device type, available memory, and a recommended model for each capability tier.
+</Accordion>
+
+<Accordion title="GET /sankalpa">
+  Returns per-user style preferences (sankalpas) — the commitments Narad has inferred about how you like to work, such as preferred response length, tone, or domain focus. Includes the full sankalpa list, a summary, and any explicit commitments you have set.
+
+  **Query parameter:** `user_id` (string, default `"default"`).
+</Accordion>

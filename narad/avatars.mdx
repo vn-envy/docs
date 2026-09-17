@@ -1,0 +1,183 @@
+---
+title: "Meet the Four Specialist Agents (Avatāras)"
+sidebarTitle: "Avatars"
+description: "Learn what Matsya, Rama, Krishna, and Parashurama each do, which requests trigger them, and how Narad combines agents to handle complex multi-domain tasks."
+---
+
+Every request you send goes to Narad first — the supervisor. Narad reads your full conversation history, identifies the domain your request belongs to, and routes it to the right one, two, or three specialist agents (called **Avatāras**). You always hear one synthesised reply; the routing is invisible unless you open the **Darshan** tab in the Dashboard to watch the live call graph.
+
+The four Avatāras are drawn from the Dashavatara — the ten descents of Vishnu. The mythology pre-solves the hardest problem in multi-agent AI: identity drift. Each Avatāra has a load-bearing cultural identity that constrains its role and prevents it from wandering into another's domain.
+
+<Tip>
+  Narad routes to a maximum of three Avatāras per turn. For complex requests that span multiple domains — for example, "build a data pipeline and explain it in a slide deck" — Narad calls Parashurama (build it) and Krishna (explain it) in parallel, then synthesises both outputs into one reply.
+</Tip>
+
+## How Narad Routes
+
+Narad uses four routing rules based on domain, not keyword matching:
+
+1. **Matsya** — when the answer lives on the web, in a document, on the filesystem, or requires critical analysis of an idea
+2. **Rama** — when the answer requires a structured plan, a calendar event, finance data, or health data
+3. **Krishna** — when the output must speak to a human: prose, email, education, media, or wellness
+4. **Parashurama** — when the answer requires code, a running system, or quantitative computation
+
+<CardGroup cols={2}>
+  <Card title="Matsya" icon="fish">
+    Web research, document extraction, browser automation, filesystem management, academic and ML research, critical analysis
+  </Card>
+  <Card title="Rama" icon="calendar">
+    Structured planning, CalDAV calendars, personal finance, CSV import, budgets, savings goals, health logging
+  </Card>
+  <Card title="Krishna" icon="envelope">
+    Email drafting and sending, teaching and education, slide decks, video creation, image generation, wellness guidance
+  </Card>
+  <Card title="Parashurama" icon="code">
+    Code writing and debugging, shell execution, SQL queries, cron jobs, document generation, React/shadcn UI components
+  </Card>
+</CardGroup>
+
+---
+
+## Matsya — Knowledge and Retrieval
+
+Matsya is the first Avatāra of Vishnu — the fish who navigated the primordial flood to recover the Vedas. In Narad, Matsya is your knowledge agent: he dives into the chaos of the web, your local files, and academic literature, and surfaces structured, cited information.
+
+**What Matsya does:**
+- Live web search (via Tavily) with multi-query triangulation
+- JavaScript-rendered page extraction with Playwright
+- REST API calls to external services
+- Interactive browser form filling and submission (screenshot-first, dry-run before submit)
+- PDF and Word document text extraction
+- Local filesystem scanning, large-file detection, disk-usage reporting
+- ArXiv, HuggingFace papers, and HuggingFace model hub search
+- Social listening across Reddit, Hacker News, and GitHub (30-day window)
+- Critical analysis using steelman → assumptions → weaknesses → verdict
+
+**Example prompts that trigger Matsya:**
+
+<Accordion title="See example prompts">
+  - "What's the latest research on retrieval-augmented generation?"
+  - "Extract the key findings from this PDF: /Users/me/Downloads/report.pdf"
+  - "Is microservices a good architecture for a team of three engineers? Argue both sides."
+  - "Scan my Downloads folder and show me everything over 500 MB."
+  - "Fill out the job application form at https://example.com/apply with my details."
+  - "Search HuggingFace for instruction-tuned 7B models fine-tuned on code."
+</Accordion>
+
+**Outputs Matsya produces:**
+- Structured research briefs with cited sources, key findings, confidence levels, and explicit gaps
+- Extracted document text with section attribution
+- Filesystem reports and organized directory trees
+- Critical analysis verdicts with conditions
+
+---
+
+## Rama — Planning and Personal Data
+
+Rama is the seventh Avatāra — the righteous king who built the bridge to Lanka stone by stone, phase by phase. In Narad, Rama is your planning and lifecycle agent: he turns goals into calendars, manages your finances, and logs your health data.
+
+**What Rama does:**
+- Structured multi-step planning with dependency-aware parallel dispatch (PLAN\_JSON format)
+- CalDAV calendar integration: read upcoming events, create new events (dry-run before commit)
+- Full finance lifecycle: CSV import, Gmail transaction sync, budget categories, savings goals, net worth snapshots
+- Spending pattern analysis using Markov transition modeling
+- Health logging: symptom recording, medication reminders, anomaly detection on health history
+- RxNorm drug information and interaction lookup
+
+**Example prompts that trigger Rama:**
+
+<Accordion title="See example prompts">
+  - "Create a three-month savings plan to reach $5,000 by October."
+  - "What's on my calendar this week?"
+  - "Import my bank CSV and categorise the transactions."
+  - "I have a headache (severity 6/10) and took ibuprofen at 2pm — log it."
+  - "Set a $400/month budget for dining out."
+  - "Show me my spending patterns for the last quarter."
+</Accordion>
+
+**Outputs Rama produces:**
+- Phased project plans in Kanban-tracked PLAN\_JSON format
+- Calendar event previews (always dry-run first, then confirmed creation)
+- Budget status reports and goal-progress updates
+- Health log summaries with anomaly flags
+
+---
+
+## Krishna — Communication and Creation
+
+Krishna is the Avatāra who taught the Bhagavad Gita — the diplomat, storyteller, and teacher. In Narad, Krishna handles all human-facing content: anything that needs to speak clearly to another person, educate, comfort, or inspire.
+
+**What Krishna does:**
+- Email drafting and SMTP sending (always dry-run first, requires explicit confirmation)
+- Multi-phase Socratic teaching: syllabuses, lesson canvases, mastery grading
+- HTML slide deck generation
+- Video creation via Gemini Veo (with moviepy fallback)
+- Image generation via Gemini Imagen
+- Wellness guidance, mental health support, and health triage (symptom context passed to Rama for logging)
+- DOCX document creation for letters, reports, and proposals
+
+**Example prompts that trigger Krishna:**
+
+<Accordion title="See example prompts">
+  - "Draft an email to my team announcing the v2 release. Keep it under 150 words."
+  - "Teach me how transformers work, starting from attention mechanisms."
+  - "Create a five-slide deck summarising our Q3 metrics."
+  - "Generate a hero image for my landing page: a peaceful mountain lake at dawn."
+  - "I've been feeling anxious at work. What are some evidence-based techniques I can try?"
+  - "Send the draft email I approved to team@example.com."
+</Accordion>
+
+**Outputs Krishna produces:**
+- Email drafts with subject, body, and recipient (preview before send)
+- Slide decks as downloadable HTML files
+- Videos and images as `/media/` URLs served locally
+- Lesson plans with four progressive rungs from beginner to mastery
+
+---
+
+## Parashurama — Code and Engineering
+
+Parashurama is the Avatāra who cleared and rebuilt — the warrior-engineer. In Narad, Parashurama handles anything that requires precision engineering: code, shell commands, SQL, and automation artifacts.
+
+**What Parashurama does:**
+- Python, JavaScript, and React code writing with root-cause debugging (never skeleton code)
+- Sandboxed shell execution via an allowlist (git, npm, pytest, python, docker, cargo, curl, find, grep)
+- Read-only SQL queries against SQLite, PostgreSQL, and MySQL via SQLAlchemy
+- Cron job setup and automation scripts
+- DOCX document generation via python-docx (resumes, reports, letters)
+- React and shadcn/UI component generation
+- FastMCP server scaffolding
+- FTS5 exact-match memory recall (code snippets, error messages)
+
+**Example prompts that trigger Parashurama:**
+
+<Accordion title="See example prompts">
+  - "Write a FastAPI endpoint that validates a JWT and returns the decoded payload."
+  - "Debug this function — it returns None when the input is an empty list."
+  - "Run `pytest tests/` and show me the failures."
+  - "Query my SQLite database for all transactions over $500 in October."
+  - "Generate a shadcn/UI dashboard component with a data table and filter bar."
+  - "Create a resume DOCX for a senior backend engineer role."
+</Accordion>
+
+**Outputs Parashurama produces:**
+- Runnable code with explanations and root-cause analysis
+- Shell command output (allowlisted commands only, blocked from system paths)
+- SQL results (read-only, capped at 200 rows by default)
+- Downloadable `.docx` files served at `/media/` URLs
+
+---
+
+## Combining Avatāras for Complex Tasks
+
+Narad plays multiple strings when a request spans domains. The combination is automatic — you never need to name the Avatāras yourself.
+
+| Request type | Avatāras called | Order |
+|---|---|---|
+| "Research RAG, then write a blog post about it" | Matsya → Krishna | Sequential (research first) |
+| "Build a data pipeline and create slides explaining it" | Parashurama + Krishna | Parallel |
+| "Set a savings goal and add a monthly reminder" | Rama + Rama | Single agent, two tools |
+| "Analyse this PDF's claims and draft a rebuttal email" | Matsya → Krishna | Sequential |
+| "Write a Python finance tracker with a budgeting plan" | Parashurama + Rama | Parallel |
+
+Open the **Dashboard → Darshan** tab to watch the live call graph during any multi-Avatāra run and see per-agent latency badges.

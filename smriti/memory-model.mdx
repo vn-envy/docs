@@ -1,0 +1,199 @@
+---
+title: "Understanding Smriti's Two Memory Primitives"
+sidebarTitle: "Memory Model"
+description: "Explore Episodes and Facts — the two primitive types that power Smriti's memory layer — and choose the right operating mode for your agent."
+---
+
+Smriti stores everything your agent learns in one of two primitive types: an **Episode** that faithfully captures each raw conversation turn, and a **Fact** that distills structured, time-stamped knowledge from those turns. Understanding how these two types work — and how the `lite` and `full` operating modes expose them — helps you build agents with memory that stays accurate as the world changes.
+
+## The Two Primitives
+
+<Tabs>
+  <Tab title="Episode (anubhava)">
+    An **Episode** is a single conversation turn, persisted exactly as it arrived. Episodes are **append-only and never mutated** — Smriti will not rewrite history, no matter how many times the same subject comes up again. Think of them as your agent's verbatim diary.
+
+    | Field | Type | Description |
+    |---|---|---|
+    | `id` | int | Auto-assigned row identifier |
+    | `session_id` | str | Groups turns from one interaction |
+    | `role` | str | `"user"` or `"assistant"` |
+    | `content` | str | The raw message text |
+    | `ts` | str \| None | ISO-8601 event timestamp |
+
+    Episodes power the **lexical**, **semantic**, and **temporal** retrieval channels. Because they are never altered, they serve as an immutable recall safety net: anything the extractor might have missed in a fact is still reachable through the raw episodic log.
+  </Tab>
+  <Tab title="Fact (samskara)">
+    A **Fact** is an atomic, bi-temporal knowledge claim extracted from one or more episodes. Facts follow a subject–predicate–object structure and carry a **validity window** that records exactly when the claim was true in the world.
+
+    | Field | Type | Description |
+    |---|---|---|
+    | `id` | int | Auto-assigned row identifier |
+    | `statement` | str | Human-readable claim, e.g. `"The user lives in Bengaluru."` |
+    | `subject` | str | Entity the claim is about |
+    | `predicate` | str | Relationship type, e.g. `"lives_in"` |
+    | `object` | str | Value of the claim |
+    | `entities` | list[str] | Named entities linked for graph traversal |
+    | `scope` | str | Optional applicability scope, e.g. `"project:Atlas"` |
+    | `valid_from` | str \| None | ISO-8601: when the claim became true in the world |
+    | `invalid_at` | str \| None | ISO-8601: when the claim was superseded (`None` = currently valid) |
+
+    Facts are **never deleted** — when a newer fact supersedes an older one, Smriti sets `invalid_at` on the old record and creates a new one. The full history remains queryable at any time.
+  </Tab>
+</Tabs>
+
+## Working With Episodes and Facts
+
+### Adding a session with `mem.add()`
+
+Call `mem.add()` with a list of conversation turns. Smriti returns a receipt that tells you how many episodes were stored and how many facts were extracted.
+
+<CodeGroup>
+```python Lite mode (episodes only)
+from smriti import Smriti
+
+mem = Smriti(path="memory.db")  # lite mode — no LLM needed
+
+receipt = mem.add([
+    {"role": "user",      "content": "I'm working on Project Atlas in Bengaluru."},
+    {"role": "assistant", "content": "Got it — I'll keep that in mind."},
+], timestamp="2026-06-01T09:00:00Z")
+
+print(receipt)
+# {
+#   "session_id": "a3f8c1d9e042",
+#   "episodes": 2,
+#   "facts": 0       # lite mode never extracts facts
+# }
+```
+
+```python Full mode (episodes + facts)
+from smriti import Smriti, LLM, OllamaEmbedder
+
+mem = Smriti(
+    path="memory.db",
+    embedder=OllamaEmbedder("nomic-embed-text"),
+    llm=LLM("qwen3:14b", provider="ollama"),
+)
+
+receipt = mem.add([
+    {"role": "user", "content": "I moved from Mumbai to Bengaluru on June 1st."},
+], timestamp="2026-06-02T10:00:00Z")
+
+print(receipt)
+# {
+#   "session_id": "b7d2a0e1f356",
+#   "episodes": 1,
+#   "facts": 1       # full mode extracted a structured fact
+# }
+```
+</CodeGroup>
+
+### Inserting a fact directly with `Fact()`
+
+You can bypass extraction entirely and write a trusted fact straight into the store. Use this for agent-generated knowledge, onboarding data, or any claim you want guaranteed to be recorded with exact field values.
+
+```python
+from smriti import Smriti
+from smriti.types import Fact
+
+mem = Smriti(path="memory.db")
+
+fact = Fact(
+    id=None,
+    statement="The user's primary programming language is Python.",
+    subject="user",
+    predicate="primary_programming_language",
+    object="Python",
+    entities=["user"],
+    scope="project:Atlas",          # optional: restrict to a specific project
+    valid_from="2026-01-01T00:00:00Z",
+)
+
+fact_id = mem.add_fact(fact)
+print(f"Stored as fact #{fact_id}")
+```
+
+<Note>
+  Direct `add_fact()` calls are trusted explicit writes. They bypass the scope-validation guard that runs during LLM-driven extraction, so double-check your field values before calling this in production.
+</Note>
+
+## Understanding RetrievalResult
+
+When you call `mem.search()` or `mem.context()`, every hit comes back as a `RetrievalResult`. The `kind` field tells you whether the hit came from the episodic log or the fact store.
+
+```python
+results = mem.search("where does the user live?", k=5)
+
+for r in results:
+    print(r.kind)        # "fact" or "episode"
+    print(r.text)        # the matched content
+    print(r.score)       # fused relevance score (0.0–1.0)
+    print(r.valid_from)  # validity window start (facts only)
+    print(r.invalid_at)  # validity window end — None means currently valid
+    print(r.scope)       # applicability scope, e.g. "project:Atlas"
+    print(r.channels)    # which channels matched, e.g. ["lexical", "semantic"]
+```
+
+## Choosing a Mode
+
+Smriti operates in two modes. You set the mode when you create the `Smriti` instance; you cannot change it mid-session.
+
+<CardGroup cols={2}>
+  <Card title="lite — laghu (लघु)" icon="feather">
+    **Best for:** cost-sensitive deployments, fully offline agents, or situations where write-time model access is unavailable.
+
+    - Zero LLM calls at write time
+    - Stores raw episodes only
+    - All four retrieval channels still work
+    - Fact store stays empty — no supersession
+    - Fully offline-capable; pass `embedder=HashEmbedder()` to skip network calls entirely
+
+    ```python
+    mem = Smriti(path="memory.db")  # default is lite
+    # or explicitly:
+    mem = Smriti(path="memory.db", mode="lite")
+    # Sanskrit alias also accepted:
+    mem = Smriti(path="memory.db", mode="laghu")
+    ```
+  </Card>
+  <Card title="full — purna (पूर्ण)" icon="database">
+    **Best for:** long-running agents that need to track evolving facts and answer questions like "where do I live now?" versus "where did I live before June?"
+
+    - One LLM extraction call per session (ordinary path)
+    - May make additional calls for semantic arbitration and scope correction
+    - Extracts structured facts with validity windows
+    - Detects conflicts and supersedes outdated facts automatically
+    - Cost depends on your provider, model, and workload
+
+    ```python
+    mem = Smriti(
+        path="memory.db",
+        embedder=OllamaEmbedder("nomic-embed-text"),
+        llm=LLM("qwen3:14b", provider="ollama"),
+        mode="full",   # or "purna"
+    )
+    ```
+  </Card>
+</CardGroup>
+
+<Tip>
+  If you pass an `llm` argument without specifying `mode`, Smriti defaults to `full` automatically. If no `llm` is provided, it defaults to `lite`. Use `mode="auto"` to make this inference explicit in your code.
+</Tip>
+
+## Inspecting Memory State With `mem.stats()`
+
+Call `mem.stats()` at any time to get a snapshot of what is stored. The `valid_facts` field counts only facts whose `invalid_at` is `None` — that is, claims that are currently true.
+
+```python
+stats = mem.stats()
+print(stats)
+# {
+#   "episodes":    142,   # total raw turns ever ingested
+#   "facts":        87,   # total facts ever written (including superseded)
+#   "valid_facts":  61,   # facts with invalid_at = None (currently true)
+#   "entities":     34,   # distinct named entities in the graph
+#   "mode":       "full"  # operating mode of this instance
+# }
+```
+
+The gap between `facts` and `valid_facts` tells you how many updates have occurred: each superseded fact increments `facts` but not `valid_facts`. Use this to audit how much your agent's world-model has evolved over time.

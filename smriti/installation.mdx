@@ -1,0 +1,191 @@
+---
+title: "Install and Configure Smriti"
+sidebarTitle: "Installation"
+description: "Install smriti-agents via pip or uv, verify Python version requirements, configure environment variables, and choose a supported LLM or embedding provider."
+---
+
+Smriti ships as a standard Python package with a single required dependency (`numpy`). Everything else — the SQLite store, the BM25 index, the HTTP client for LLM and embedding providers, and the MCP server — uses the Python standard library. This page covers installation, optional configuration, and the full list of supported providers.
+
+## Requirements
+
+Smriti requires **Python 3.9 or later**. It is tested on Python 3.9, 3.10, 3.11, and 3.12. No Docker, no database server, no cloud account.
+
+## Install the package
+
+<CodeGroup>
+  ```bash pip
+  pip install smriti-agents
+  ```
+
+  ```bash uv
+  uv add smriti-agents
+  ```
+</CodeGroup>
+
+<Warning>
+  The PyPI package name is **`smriti-agents`** — the name `smriti-memory` belongs to an unrelated project. The Python import name is `smriti` regardless of the install command you use.
+</Warning>
+
+Verify your installation by importing the package and checking its version:
+
+```python
+import smriti
+print(smriti.__version__)  # 0.3.2
+```
+
+## Embedders
+
+Smriti's semantic retrieval channel requires an embedder. The package ships with three options; no additional `pip install` is needed for any of them.
+
+<Accordion title="HashEmbedder — fully offline, no model required">
+  `HashEmbedder` uses deterministic character n-gram hashing. It has no external dependencies beyond `numpy`, requires no model download, and works entirely offline. Use it for local development, integration tests, and CI pipelines.
+
+  ```python
+  from smriti import HashEmbedder
+
+  embedder = HashEmbedder(dim=256)  # dim is optional, defaults to 256
+  ```
+</Accordion>
+
+<Accordion title="OllamaEmbedder — local semantic embeddings via Ollama">
+  `OllamaEmbedder` calls the Ollama `/api/embed` endpoint running on your machine. Pull a model with `ollama pull` before using it.
+
+  ```bash
+  ollama pull nomic-embed-text   # 768-dim, strong general-purpose embeddings
+  # or
+  ollama pull bge-m3             # multilingual alternative
+  ```
+
+  ```python
+  from smriti import OllamaEmbedder
+
+  embedder = OllamaEmbedder(
+      model="nomic-embed-text",
+      base_url="http://localhost:11434",  # default
+  )
+  ```
+</Accordion>
+
+<Accordion title="OpenAICompatEmbedder — any /v1/embeddings endpoint">
+  `OpenAICompatEmbedder` works with any provider that exposes a `/v1/embeddings`-compatible API — including OpenAI, vLLM, LM Studio, and hosted providers.
+
+  ```python
+  from smriti import OpenAICompatEmbedder
+
+  embedder = OpenAICompatEmbedder(
+      model="text-embedding-3-small",
+      base_url="https://api.openai.com/v1",
+      api_key="sk-...",
+  )
+  ```
+</Accordion>
+
+<Tip>
+  Use `path=":memory:"` during development and testing to run Smriti entirely in-process with no file on disk. The database disappears when your Python process exits, which makes it safe for unit tests.
+
+  ```python
+  mem = Smriti(path=":memory:", embedder=HashEmbedder())
+  ```
+</Tip>
+
+## Supported LLM providers
+
+Full mode requires an LLM for write-time fact extraction. Smriti uses a standard-library HTTP client and works with any OpenAI-compatible `/v1/chat/completions` endpoint.
+
+| Provider | How to connect |
+|---|---|
+| **Ollama** | `LLM("qwen3:14b", provider="ollama")` — runs on `http://localhost:11434` by default |
+| **OpenAI** | `LLM("gpt-4o-mini", provider="openai", api_key="sk-...")` |
+| **vLLM** | `LLM("meta-llama/Llama-3.1-8B-Instruct", base_url="http://localhost:8000/v1")` |
+| **LM Studio** | `LLM("lmstudio-community/Meta-Llama-3.1-8B-Instruct", base_url="http://localhost:1234/v1")` |
+| **Groq** | `LLM("llama-3.1-8b-instant", provider="groq", api_key="gsk_...")` |
+| **DeepSeek** | `LLM("deepseek-chat", provider="deepseek", api_key="...")` |
+| **OpenRouter** | `LLM("meta-llama/llama-3.1-8b-instruct", base_url="https://openrouter.ai/api/v1", api_key="...")` |
+
+For any unlisted provider, pass `base_url` pointing at their `/v1/chat/completions`-compatible endpoint directly.
+
+## Environment variables
+
+The Smriti MCP server reads its configuration from environment variables, so you don't need to hard-code paths or credentials into your agent's config file.
+
+<ParamField body="SMRITI_DB" type="string" default="smriti_memory.db">
+  Path to the SQLite database file. Equivalent to the `--db` CLI flag. Use an absolute path if you run the MCP server from multiple working directories.
+</ParamField>
+
+<ParamField body="SMRITI_LLM_MODEL" type="string">
+  The model name to use for full-mode fact extraction. Setting this variable (together with `SMRITI_LLM_PROVIDER`) switches the MCP server from lite mode to full mode automatically.
+
+  Example: `qwen3:14b`, `gpt-4o-mini`, `llama-3.1-8b-instant`
+</ParamField>
+
+<ParamField body="SMRITI_LLM_PROVIDER" type="string">
+  The LLM provider. Accepted values: `ollama`, `openai`, `groq`, `deepseek`. Omit this variable to use a raw `base_url` instead.
+</ParamField>
+
+<ParamField body="SMRITI_API_KEY" type="string">
+  API key for the configured LLM provider. Leave unset for local providers like Ollama and vLLM that don't require authentication.
+</ParamField>
+
+<ParamField body="SMRITI_EMBED_MODEL" type="string">
+  The embedding model to use for the MCP server. Example: `nomic-embed-text`. When unset, the MCP server uses `HashEmbedder` (offline, no model required).
+</ParamField>
+
+<ParamField body="SMRITI_EMBED_PROVIDER" type="string">
+  The embedding provider. Accepted values: `ollama`, `openai`. Used together with `SMRITI_EMBED_MODEL` to configure the embedder.
+</ParamField>
+
+### Example: full-mode MCP server with Ollama
+
+```bash
+export SMRITI_DB="/home/user/.config/smriti/memory.db"
+export SMRITI_LLM_MODEL="qwen3:14b"
+export SMRITI_LLM_PROVIDER="ollama"
+export SMRITI_EMBED_MODEL="nomic-embed-text"
+export SMRITI_EMBED_PROVIDER="ollama"
+
+smriti-mcp
+```
+
+### Example: full-mode MCP server with OpenAI
+
+```bash
+export SMRITI_DB="memory.db"
+export SMRITI_LLM_MODEL="gpt-4o-mini"
+export SMRITI_LLM_PROVIDER="openai"
+export SMRITI_API_KEY="sk-..."
+export SMRITI_EMBED_MODEL="text-embedding-3-small"
+export SMRITI_EMBED_PROVIDER="openai"
+
+smriti-mcp
+```
+
+## Verify the installation
+
+Run the built-in `smriti-doctor` command against an existing database to check integrity, schema, embedding dimensions, and WAL state:
+
+```bash
+smriti-doctor --db memory.db
+```
+
+To run the core test suite without any network or API keys:
+
+```bash
+git clone https://github.com/vn-envy/Smriti && cd Smriti
+pip install -e '.[dev]'
+python -m pytest tests/ -q
+```
+
+<Note>
+  If you open an existing database with a different embedder than the one used to create it, Smriti will reject the mismatch to prevent corrupted vector search results. If you intentionally changed embedders, pass `adopt_legacy_embedder=True` to `Smriti(...)` for a one-time migration. For MCP-managed databases, use `smriti-mcp --adopt-legacy-embedder --db memory.db`.
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/smriti/quickstart">
+    See a full working example with `mem.add()` and `mem.context()`.
+  </Card>
+  <Card title="MCP Server" icon="plug" href="/smriti/mcp-server">
+    Expose Smriti memory to Claude Code, Cursor, or any MCP-compatible agent.
+  </Card>
+</CardGroup>

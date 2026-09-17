@@ -1,0 +1,106 @@
+---
+title: "Understanding Gauge R&R in PRISM's Judge Panel"
+sidebarTitle: "Gauge R&R"
+description: "Learn how PRISM's 3-judge Gauge R&R panel validates measurement reliability before trusting model scores, and what to do when it fails."
+---
+
+Before you trust a measurement, you need to trust the measuring instrument. In manufacturing, a Gauge R&R study calibrates the caliper before you use it to qualify parts — if two inspectors measuring the same bolt get wildly different readings, the caliper is the problem, not the bolt. PRISM applies the same principle to LLM evaluation: the three-judge scoring panel undergoes a Gauge R&R validation before its verdicts are used to compute Cpk and MatchScore.
+
+## What Gauge R&R Measures
+
+Gauge R&R (Repeatability and Reproducibility) quantifies how much of the total observed variance in scores comes from the measurement system itself, as opposed to real differences between the candidate models being evaluated.
+
+```
+Gauge R&R % = (measurement system variance / total variance) × 100
+```
+
+Where measurement system variance = repeatability + reproducibility:
+- **Repeatability**: Within-judge consistency — does a single judge give similar scores when presented with similar outputs?
+- **Reproducibility**: Between-judge consistency — do different judges agree on the same output?
+- **Part variance**: The actual variance attributable to real differences between candidate model outputs.
+
+A low Gauge R&R % means the judges agree and the variance you observe is real signal from the models. A high Gauge R&R % means the judges disagree and the scores cannot be trusted.
+
+## The Three-Judge Panel
+
+PRISM's Gauge R&R panel consists of three frontier models chosen to represent different reasoning lineages and model sizes:
+
+<CardGroup cols={3}>
+  <Card title="GPT-4o" icon="brain">
+    Primary judge. Strong analytical reasoning and consistent instruction-following. Contributes the anchor score for each evaluation dimension.
+  </Card>
+  <Card title="GPT-4o-mini" icon="microchip">
+    Size-diversity judge. Smaller model from the same family introduces independence between panel members and guards against single-provider bias.
+  </Card>
+  <Card title="Llama 3.3 70B" icon="circle-nodes">
+    Open-weight judge via Groq. Provides a fully independent third perspective from a different model family and provider.
+  </Card>
+</CardGroup>
+
+Each judge independently scores every trial output across all four CTQ dimensions (Task Accuracy, Structural Compliance, Language Fidelity, Safety & Groundedness), without seeing the other judges' scores.
+
+## Gauge R&R Thresholds
+
+| Gauge R&R % | Status | Meaning |
+|-------------|--------|---------|
+| **< 30%** | ✅ Trustworthy | Measurement system contributes less than 30% of total variance. Results are reliable. |
+| **30–50%** | ⚠️ Marginal | Use results with caution. Consider increasing trial count or reviewing judge prompts. |
+| **> 50%** | ❌ Unreliable | Measurement system variance dominates. PRISM flags this run and discounts results. |
+
+The 30% threshold comes directly from the AIAG (Automotive Industry Action Group) Measurement System Analysis standard — the same threshold manufacturing companies use to qualify production measurement equipment.
+
+## Inter-Judge Sigma Flagging
+
+Before computing Gauge R&R %, PRISM checks whether any single trial produced wildly inconsistent scores across the three judges. If the **inter-judge standard deviation** for a trial exceeds 20 points on the 0–100 scale, that trial is flagged for review.
+
+```
+inter_judge_sigma = std_dev([judge1_score, judge2_score, judge3_score])
+```
+
+An inter-judge sigma above 20 on a single trial typically means one of two things:
+1. The candidate model produced a borderline output that is genuinely ambiguous to evaluate.
+2. One judge misinterpreted the scoring rubric for that dimension.
+
+When inter-judge sigma exceeds 20 on more than one trial for the same model, PRISM notes the unreliable measurement in the response and excludes that model's results from the final ranking.
+
+## What to Do When Gauge R&R Fails
+
+If your evaluation returns a Gauge R&R % above 30%, the model scores from that run should not be used to make production decisions. Here are the steps to resolve it:
+
+<Steps>
+  <Step title="Increase the trial count">
+    A higher trial count gives the Gauge R&R calculation more data points and produces a more stable estimate of judge variance. Try `--trials 7` or `--trials 10`.
+
+    ```bash
+    python measure.py --intent "..." --trials 7
+    ```
+  </Step>
+
+  <Step title="Narrow your intent">
+    A vague intent can produce ambiguous test cases that judges score inconsistently. Make your intent as specific as possible — include the output format, language, domain, and any constraints.
+
+    ```bash
+    # Vague (may cause high inter-judge variance)
+    python measure.py --intent "customer service bot"
+
+    # Specific (produces consistent, scorable test cases)
+    python measure.py --intent "Hindi customer service bot for e-commerce returns, responding in JSON with fields: status, reason, next_steps"
+    ```
+  </Step>
+
+  <Step title="Override the pillar">
+    If auto-detected pillar is wrong, the test generator may produce off-target test cases that judges struggle to score. Use `--pillar` to set the correct capability pillar explicitly.
+
+    ```bash
+    python measure.py --intent "..." --pillar structured_output
+    ```
+  </Step>
+
+  <Step title="Check the trace">
+    Every live-mode run generates a Langfuse trace URL in the response. Open the trace to inspect individual judge scores per trial and identify which dimension caused the disagreement.
+  </Step>
+</Steps>
+
+<Note>
+  In demo mode (`PRISM_DEMO_MODE=true`), Gauge R&R % is simulated from the HuggingFace prior scores. The simulation is calibrated to produce realistic values but will not reflect actual judge behaviour for your specific intent. Run in live mode to get a real Gauge R&R measurement.
+</Note>

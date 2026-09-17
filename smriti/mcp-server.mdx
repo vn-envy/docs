@@ -1,0 +1,148 @@
+---
+title: "Use Smriti as an MCP Memory Server"
+sidebarTitle: "MCP Server"
+description: "Connect any MCP-compatible AI agent to Smriti's persistent, auditable memory layer using a single command and a JSON config block."
+---
+
+The Model Context Protocol (MCP) lets AI development tools like Claude Code and Cursor delegate work to external servers over a standardized JSON-RPC 2.0 interface. Smriti ships a lightweight, stdlib-only MCP server that exposes all six of its memory tools over stdio — so your agent gains persistent, temporally-aware memory without any infrastructure changes. Once configured, the agent calls `remember` to store new information and `recall` to pull relevant context back into its window, automatically.
+
+<Steps>
+
+### Install smriti-agents
+
+Install the package from source. The PyPI name `smriti-agents` is reserved for this project; install directly from the repository to get the current candidate.
+
+<CodeGroup>
+```bash pip (editable)
+git clone https://github.com/vn-envy/Smriti && cd Smriti
+pip install -e '.[dev]'
+```
+
+```bash pip (core only)
+git clone https://github.com/vn-envy/Smriti && cd Smriti
+pip install -e .
+```
+</CodeGroup>
+
+Verify the CLI is available:
+
+```bash
+smriti-mcp --help
+```
+
+### Configure your MCP client
+
+Add the Smriti server block to your MCP client's configuration file. The `--db` flag points to the SQLite file Smriti will create or reopen. Use an absolute path in production so the file location stays stable regardless of the working directory your client uses.
+
+<Tabs>
+  <Tab title="Claude Code">
+    Open your Claude Code MCP configuration (typically `~/.claude/claude_desktop_config.json` or the project-level `.mcp.json`) and add the following block inside `mcpServers`:
+
+    ```json
+    {
+      "mcpServers": {
+        "smriti": {
+          "command": "smriti-mcp",
+          "args": ["--db", "memory.db"]
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Cursor">
+    Open **Settings → MCP → Edit Config** and merge the same block:
+
+    ```json
+    {
+      "mcpServers": {
+        "smriti": {
+          "command": "smriti-mcp",
+          "args": ["--db", "memory.db"]
+        }
+      }
+    }
+    ```
+
+    Restart Cursor after saving for the server to register.
+  </Tab>
+  <Tab title="Other MCP clients">
+    Any client that follows the MCP stdio transport spec works. Pass the same JSON structure your client expects, keeping `command` as `smriti-mcp` and `args` as `["--db", "<path/to/memory.db>"]`.
+
+    ```json
+    {
+      "mcpServers": {
+        "smriti": {
+          "command": "smriti-mcp",
+          "args": ["--db", "/absolute/path/to/memory.db"]
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+By default the server runs in **lite mode** (no LLM calls at write time). To enable full fact-extraction and temporal consolidation, set the `SMRITI_LLM_MODEL` and `SMRITI_LLM_PROVIDER` environment variables before starting the server. See the environment variable reference below.
+</Note>
+
+### Test with remember and recall
+
+With the server running, ask your agent to store a fact and retrieve it. If your client exposes raw tool calls, you can also invoke the tools directly:
+
+<CodeGroup>
+```json remember — store a message
+{
+  "tool": "remember",
+  "arguments": {
+    "messages": [
+      { "role": "user", "content": "My primary project is Atlas and I use TypeScript." }
+    ]
+  }
+}
+```
+
+```json recall — retrieve context
+{
+  "tool": "recall",
+  "arguments": {
+    "query": "What project am I working on?",
+    "profile": "facts"
+  }
+}
+```
+</CodeGroup>
+
+A successful `recall` returns a packed plain-text context block you can inject directly into a prompt. You should see something like:
+
+```
+KNOWN FACTS:
+- [2026-01-15 | CURRENT] Primary project is Atlas.
+- [2026-01-15 | CURRENT] Preferred language is TypeScript.
+```
+
+</Steps>
+
+## Environment variables
+
+Configure the server's LLM backend, embedder, and database path through environment variables. Set them in your shell, a `.env` file, or your MCP client's `env` block.
+
+| Variable | Required | Description |
+|---|---|---|
+| `SMRITI_DB` | No | Path to the SQLite database file. Overridden by `--db` on the CLI. |
+| `SMRITI_LLM_MODEL` | No* | LLM model name for full-mode fact extraction, e.g. `qwen3:14b`. |
+| `SMRITI_LLM_PROVIDER` | No* | LLM provider: `ollama`, `openai`, or any OpenAI-compatible label. |
+| `SMRITI_API_KEY` | No* | API key for hosted LLM providers (OpenAI, Groq, DeepSeek, etc.). |
+| `SMRITI_EMBED_MODEL` | No | Embedder model name, e.g. `nomic-embed-text`. Defaults to hash embedder if unset. |
+| `SMRITI_EMBED_PROVIDER` | No | Embedder provider: `ollama` or `openai_compat`. |
+
+\* Required only when running in full extraction mode. Lite mode (the default) needs no API keys and makes no LLM calls at write time.
+
+<Warning>
+Smriti records the embedder identity in each new database and **rejects a reopen with a mismatched model, endpoint, or dimension**. If you change `SMRITI_EMBED_MODEL` after creating a database, you must either start a fresh file or perform a one-time legacy adoption: `smriti-mcp --adopt-legacy-embedder --db memory.db`.
+</Warning>
+
+## Verifying your database
+
+<Tip>
+Run `smriti-doctor --db memory.db` at any time to perform a read-only integrity check. The tool inspects SQLite page integrity, schema version, row counts, WAL state, and embedder-identity metadata — and prints a clear summary of what it finds. It makes no writes and is safe to run against a live database.
+</Tip>

@@ -1,0 +1,80 @@
+---
+title: "Leadsy Flock Campaign Pricing"
+sidebarTitle: "Pricing"
+description: "Understand Leadsy Flock's per-campaign bundle tiers — Find, Launch, and Full — with per-agent pricing and cost transparency at the /dash observatory."
+---
+
+Leadsy Flock charges per campaign, not per month. You choose a bundle before you approve, you see the exact rupee price before any model calls run, and you can track every rupee of Vertex cost in real time at `/dash`. There are no subscriptions, no hidden minimums, and no retainer.
+
+## Bundle tiers
+
+Choose the bundle that matches your goal and budget. Bri calculates your exact price during the planning step — before YES, before any creative work begins.
+
+| Bundle | Agents included | Best for | Starting price |
+|--------|----------------|----------|---------------|
+| **Find** | Scout only | Shops under ₹4,000 budget, or first-time users who want research before committing to creative | ₹1,999 |
+| **Launch** | Scout + Inka + Stella | Shops ready to run ads — full creative kit plus a consent landing page | ₹5,997 |
+| **Full** | Scout + Inka + Stella + Ray | Shops who want to follow up with opted-in leads after running ads | ₹7,996 |
+
+## Per-agent pricing
+
+Each agent has a fixed price. Bundles are simply combinations of agents at their individual rates — no bundle discount, no markup.
+
+| Agent | Role | Price per campaign |
+|-------|------|-------------------|
+| Scout | Brand and market research, BrandSpec, competitor shelf | ₹1,999 |
+| Inka | Bilingual copy, Veo 3.1 films, stills, Lyria audio sting | ₹2,499 |
+| Stella | Consent-first landing page at `/l/{id}` | ₹1,499 |
+| Ray | Consent-gated outreach to opted-in leads | ₹1,999 |
+
+## What each bundle includes
+
+<Accordion title="Find — Scout only (₹1,999)">
+  The Find bundle runs Scout and produces a BrandSpec and competitor insight report without generating any creative. Use Find when:
+
+  - Your budget is under ₹4,000 and you want to understand your market before spending on Inka
+  - You already have a creative team and just need the research layer
+  - You want to see what Scout discovers about your listing before committing to a full kit
+
+  **Deliverables:**
+  - `BrandSpec` (theme, palette, tone, tagline hints)
+  - `ownUris` list (your listing photos, website, menu)
+  - Competitor insight (top local rivals and their positioning)
+  - Ad shelf (comparable ads in your category and city)
+  - No landing page, no creative kit
+</Accordion>
+
+<Accordion title="Launch — Scout + Inka + Stella (₹5,997)">
+  The Launch bundle is the most popular choice for shops running their first paid campaign. It covers the full creative stack and gives you a landing page to send traffic to.
+
+  **Deliverables:**
+  - Everything in Find
+  - Bilingual copy for all six channel variants (EN + Indic)
+  - Two 8-second Veo 3.1 films (place + proof) with multi-ratio derivatives
+  - Still images at all five aspect ratios
+  - 2-second Lyria audio sting
+  - Consent-first landing page at `/l/{campaign_id}`
+  - Complete paste kit at `/k/{campaign_id}` with UTM-tracked links
+  - No outreach (Ray does not run)
+</Accordion>
+
+<Accordion title="Full — Scout + Inka + Stella + Ray (₹7,996)">
+  The Full bundle adds Ray to the Launch stack. Ray sends personalised follow-up messages to visitors who opt in via the Stella landing page.
+
+  **Deliverables:**
+  - Everything in Launch
+  - Ray outreach (sandbox mode by default) to opted-in leads
+  - Outreach log with timestamp and consent record reference per message
+
+  **Important:** Ray only fires after at least one visitor has opted in via `/l/{campaign_id}`. If your landing page receives no opt-ins, Ray does not run and you are still charged for the agent (the pipeline ran; the gate fired correctly).
+</Accordion>
+
+## Cost transparency
+
+Every campaign has a real-time cost observatory at `/dash`. The observatory reconstructs Vertex list prices for every model call in the pipeline — token counts, tool calls, Veo seconds, Gemini Image generations, and Lyria requests — and shows the total in both USD and INR.
+
+<Note>
+  The Glen's Bakehouse demo campaign ran at **$6.41 / ₹545** in Vertex list-price burn, with almost all of it coming from Veo at $0.40 per second. This is the actual pipeline cost, not the hire price you pay Leadsy Flock. The observatory is for transparency, not billing.
+</Note>
+
+The hire price (Find / Launch / Full) and the Vertex cost are separate numbers. The hire price covers the Flock's infrastructure, orchestration, and the guarantee that Inka only uses your own shop photos. The observatory number reflects what the underlying Google models cost at list price.

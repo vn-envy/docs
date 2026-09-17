@@ -1,0 +1,167 @@
+---
+title: "Retrieval Profiles and Custom Search Strategies"
+sidebarTitle: "Profiles"
+description: "Use Smriti's named retrieval profiles (drishti) to shape what each query returns, or build custom profiles and multi-hop strategies for complex queries."
+---
+
+Retrieval in Smriti is not a single fixed algorithm — it is a set of four independent channels that can be mixed, weighted, and bundled into named policies. Smriti calls these policies *drishti* (दृष्टि), Sanskrit for "ways of seeing." The idea is that the same memory store admits many valid views: a query about what happened on a specific date should emphasize the temporal channel, while a query about relationships should prioritize the entity graph. Profiles make each view explicit, named, and testable rather than buried in numeric knobs.
+
+The four underlying channels are:
+
+| Channel | Sanskrit name | What it searches |
+|---|---|---|
+| Lexical | *shabda* (शब्द) — "word" | BM25 full-text search over episodes and facts |
+| Semantic | *artha* (अर्थ) — "meaning" | Approximate nearest-neighbour over stored embeddings |
+| Entity | *sambandha* (सम्बन्ध) — "relation" | Entity graph — 1-hop or 2-hop neighbourhood traversal |
+| Temporal | *kala* (काल) — "time" | Date-proximity scoring and chronological episode ordering |
+
+Results from all active channels are fused using Reciprocal Rank Fusion (*sangama* — "confluence"), then annotated with validity metadata (`CURRENT` / `SUPERSEDED on <date>`) before packing into a context string.
+
+## Named profiles
+
+Smriti ships five named profiles. Pass any of these strings as the `profile` argument to `mem.search()`, `mem.context()`, `recall`, or `search` MCP tools.
+
+| Profile | Channels active | Best for |
+|---|---|---|
+| `facts` | Lexical + semantic + entity (1-hop) | Point-in-time knowledge lookups: "where do I live?", preference updates |
+| `relations` | Semantic + entity (2-hop) — entity channels up-weighted | Social graph queries: "who works with Rachel?", connections and introductions |
+| `timeline` | Lexical + temporal — date-anchored episodes, chronological ordering | Event history: "what happened in March?", before/after questions |
+| `deep` | All channels + key expansion + observation digests | Counts, totals, exhaustive summaries: "how many concerts did I attend?" |
+| `auto` | Router-selected (zero-token LLM-free picker) | Agents that prefer not to choose — picks one of the above per query |
+| `precision` | Lexical + semantic (no entity or temporal) | Short, high-confidence answers; avoids graph noise for simple factual lookups |
+
+## Using named profiles in code
+
+Pass a profile name as a string to any retrieval call. The profile controls channel selection, weighting, and how results are packed into the context string.
+
+<CodeGroup>
+```python facts
+results = mem.search("where do I live?", profile="facts")
+context = mem.context("where do I live?", profile="facts")
+```
+
+```python relations
+results = mem.search("who works with Rachel?", profile="relations")
+context = mem.context("who collaborates with Rachel?", profile="relations")
+```
+
+```python timeline
+results = mem.search("what changed in June?", profile="timeline")
+context = mem.context("what happened in March?", profile="timeline")
+```
+
+```python deep
+results = mem.search("how many concerts did I attend?", profile="deep")
+context = mem.context("summarize everything about my travel history", profile="deep")
+```
+
+```python auto
+# Let Smriti's zero-token router choose the profile
+results = mem.search("my last conversation with Omar", profile="auto")
+context = mem.context("my last conversation with Omar", profile="auto")
+```
+</CodeGroup>
+
+You can also bypass profiles entirely and specify channels directly. This is useful when you want a single channel without any weighting adjustments — for example, BM25-only retrieval that skips the embedding round-trip entirely:
+
+```python
+# Lexical only — skips embedding lookup
+results = mem.search("db migration steps", channels={"lexical"})
+
+# Temporal + semantic — Sanskrit channel aliases are also accepted
+results = mem.search("what changed in June?", channels={"kala", "artha"})
+```
+
+## Custom RetrievalProfile
+
+When the named profiles do not match your workload, create a `RetrievalProfile` directly. Custom profiles are plain data objects — you can benchmark them with the shipped harness just like the built-ins.
+
+```python
+from smriti import Smriti, RetrievalProfile
+from smriti.embedder import OllamaEmbedder
+from smriti import LLM
+
+mem = Smriti(
+    path="memory.db",
+    embedder=OllamaEmbedder("nomic-embed-text"),
+    llm=LLM("qwen3:14b", provider="ollama"),
+)
+
+# A support-ticket profile: lexical + semantic, broad k
+support = RetrievalProfile(
+    name="support",
+    channels={"lexical", "semantic"},
+    k=8,
+)
+
+results = mem.search("authentication error on login", profile=support)
+context = mem.context("authentication error on login", profile=support)
+```
+
+<ParamField body="name" type="str">
+  A human-readable label for the profile. Appears in retrieval evidence metadata.
+</ParamField>
+
+<ParamField body="channels" type="set[str]">
+  The set of channels to activate. Valid values: `"lexical"`, `"semantic"`, `"entity"`, `"temporal"` (or their Sanskrit aliases `"shabda"`, `"artha"`, `"sambandha"`, `"kala"`).
+</ParamField>
+
+<ParamField body="k" type="int">
+  Number of candidates to fetch per channel before fusion. Higher values increase recall at the cost of latency and context length.
+</ParamField>
+
+## Session-diversity boosting
+
+By default, Smriti's fusion step may return several results from the same source session when that session is strongly relevant. For multi-session queries — "what did I say across all our conversations?" — you can opt in to session-diversity boosting, which spreads results across more distinct sessions.
+
+```python
+# Opt-in session diversity — ordinary defaults stay unchanged
+results = mem.search(
+    "what have I told you about my work?",
+    k=5,
+    session_diverse=True,
+    session_overfetch=3,   # fetch 3× k internally, then diversify down to k
+)
+
+context = mem.context(
+    "what have I told you about my work?",
+    k=5,
+    session_diverse=True,
+    session_overfetch=3,
+)
+```
+
+<Info>
+Session diversity is an opt-in experiment. In Smriti's held-out benchmark it raised source-session recall@5 from 84.6 % to 93.3 %, but that is a retrieval metric — it does not guarantee better generated answers. Evaluate it on your own workload using `bash bench/ab.sh` before relying on it in production.
+</Info>
+
+## Multi-hop iterative retrieval
+
+Standard retrieval fetches one round of results for your query. Iterative retrieval runs multiple rounds, using each round's top results to expand the query with new entity and keyword signals. This helps with complex questions that require following chains of connected facts.
+
+<CodeGroup>
+```python search_iterative
+# Two rounds of retrieval expansion
+results = mem.search_iterative(
+    query="who introduced me to the Atlas team?",
+    k=5,
+    rounds=2,
+)
+```
+
+```python context_iterative
+# Two-round context building with automatic budget management
+context = mem.context_iterative(
+    query="who introduced me to the Atlas team?",
+    rounds=2,
+)
+```
+</CodeGroup>
+
+<Tip>
+Start with `rounds=2`. A second round captures one level of entity expansion — enough for most "who knows whom" or "what led to what" questions — without multiplying retrieval latency. More rounds help only when the answer genuinely requires following longer chains.
+</Tip>
+
+<Warning>
+`search_iterative` and `context_iterative` do not currently support the `session_diverse` option. If you need both diversity boosting and iterative expansion, apply diversity on a standard `search()` call first.
+</Warning>

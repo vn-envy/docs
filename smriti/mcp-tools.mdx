@@ -1,0 +1,341 @@
+---
+title: "Smriti MCP Tool Reference — All Six Tools"
+sidebarTitle: "MCP Tools"
+description: "Reference for all six Smriti MCP tools: parameters, return schemas, and usage examples including the recall vs. search distinction."
+---
+
+Smriti's MCP server exposes six typed tools over stdio JSON-RPC 2.0. Each tool maps directly to a memory operation: writing new information, reading it back in different forms, querying the entity graph, and inspecting store statistics. Any MCP-compatible agent — Claude Code, Cursor, or a custom client — can call these tools by name without knowing anything about the underlying SQLite store. This page documents every parameter and return field for all six tools.
+
+## recall vs. search — which to use
+
+Before diving into individual tools, understand the key distinction between `recall` and `search`:
+
+- **`recall`** returns a **packed plain-text string** — a ready-to-use context block you inject directly into a prompt. Use it when your agent needs memory as prompt context.
+- **`search`** returns a **structured JSON array** — one object per result, with score, validity dates, scope, and kind. Use it when your agent needs to reason over individual results, filter by date, or display memory to a user.
+
+Both tools accept the same `profile` and `channels` arguments, so the retrieval logic is identical — only the output format differs.
+
+---
+
+## remember
+
+Store one or more conversation turns and extract facts from them. This is the primary write tool. In lite mode, `remember` stores the raw episode only. In full mode, it also runs fact extraction and temporal consolidation.
+
+```json
+{
+  "tool": "remember",
+  "arguments": {
+    "messages": [
+      { "role": "user", "content": "I moved to Bengaluru on June 1st." },
+      { "role": "assistant", "content": "Got it — I'll update your location." }
+    ],
+    "timestamp": "2026-06-02T10:00:00Z",
+    "session_id": "session-onboarding-001"
+  }
+}
+```
+
+<ParamField body="messages" type="array" required>
+  Array of message objects to store. Each object must have `"role"` (`"user"` or `"assistant"`) and `"content"` (string).
+</ParamField>
+
+<ParamField body="timestamp" type="string">
+  ISO 8601 timestamp for the session. Used as the validity anchor for extracted facts. Defaults to current UTC time if omitted.
+</ParamField>
+
+<ParamField body="session_id" type="string">
+  A caller-supplied stable identifier for this session. Smriti generates a UUID if omitted. Use stable IDs to enable targeted erasure later.
+</ParamField>
+
+**Returns:**
+
+<ResponseField name="session_id" type="string">
+  The session identifier — caller-supplied or auto-generated.
+</ResponseField>
+
+<ResponseField name="episodes" type="integer">
+  Number of episodic records written to the store.
+</ResponseField>
+
+<ResponseField name="facts" type="integer">
+  Number of facts extracted and stored. Always 0 in lite mode.
+</ResponseField>
+
+---
+
+## recall
+
+Retrieve memory as a packed, budget-capped plain-text context string. Use `recall` when you want to inject memory directly into a prompt without processing individual results.
+
+```json
+{
+  "tool": "recall",
+  "arguments": {
+    "query": "What project am I currently working on?",
+    "profile": "facts",
+    "char_budget": 4096
+  }
+}
+```
+
+**Example response:**
+
+```
+KNOWN FACTS:
+- [2026-01-15 | CURRENT] Primary project is Atlas.
+- [2026-01-15 | CURRENT] Preferred language is TypeScript.
+- [2026-01-10 | CURRENT] Team lead is Rachel.
+```
+
+<ParamField body="query" type="string" required>
+  The natural-language question or topic to retrieve context for.
+</ParamField>
+
+<ParamField body="profile" type="string">
+  Named retrieval profile: `"facts"`, `"relations"`, `"timeline"`, `"deep"`, `"auto"`, or `"precision"`. Defaults to `"auto"`.
+</ParamField>
+
+<ParamField body="channels" type="array[string]">
+  Explicit channel override, bypassing the profile. Valid values: `"lexical"`, `"semantic"`, `"entity"`, `"temporal"` (or Sanskrit aliases `"shabda"`, `"artha"`, `"sambandha"`, `"kala"`).
+</ParamField>
+
+<ParamField body="char_budget" type="integer">
+  Maximum character length of the returned context string. Results are included in relevance order; lower-ranked items are dropped if the budget is reached. Defaults to `8000`.
+</ParamField>
+
+**Returns:** `string` — a plain-text context block with inline validity annotations, ready to prepend to a system or user prompt.
+
+---
+
+## search
+
+Retrieve memory as a structured JSON array of result objects. Use `search` when your agent needs to inspect individual results — filter by validity date, check provenance, or display results to a user.
+
+```json
+{
+  "tool": "search",
+  "arguments": {
+    "query": "who mentors Rachel?",
+    "k": 5,
+    "profile": "relations"
+  }
+}
+```
+
+**Example response:**
+
+```json
+[
+  {
+    "kind": "fact",
+    "text": "Omar mentors Rachel on system design.",
+    "score": 0.94,
+    "valid_from": "2026-03-01",
+    "invalid_at": null,
+    "scope": null
+  },
+  {
+    "kind": "episode",
+    "text": "User said: 'Omar has been helping Rachel with architecture reviews.'",
+    "score": 0.81,
+    "valid_from": null,
+    "invalid_at": null,
+    "scope": null
+  }
+]
+```
+
+<ParamField body="query" type="string" required>
+  The natural-language query to search for.
+</ParamField>
+
+<ParamField body="k" type="integer" default="5">
+  Maximum number of results to return after channel fusion and reranking.
+</ParamField>
+
+<ParamField body="profile" type="string">
+  Named retrieval profile. Defaults to `"auto"`.
+</ParamField>
+
+<ParamField body="channels" type="array[string]">
+  Explicit channel override, bypassing the profile.
+</ParamField>
+
+**Returns:** `array` of result objects.
+
+<ResponseField name="kind" type='"fact" | "episode"'>
+  Whether the result is a consolidated, temporally-annotated fact or a raw episode from the episodic log.
+</ResponseField>
+
+<ResponseField name="text" type="string">
+  The retrieved text content. Facts include inline validity labels (`CURRENT` or `SUPERSEDED on <date>`).
+</ResponseField>
+
+<ResponseField name="score" type="float">
+  Fused relevance score from Reciprocal Rank Fusion. Higher is more relevant.
+</ResponseField>
+
+<ResponseField name="valid_from" type="string | null">
+  ISO 8601 date from which this fact is valid. `null` for episodic results.
+</ResponseField>
+
+<ResponseField name="invalid_at" type="string | null">
+  ISO 8601 date at which this fact was superseded. `null` if still current or for episodic results.
+</ResponseField>
+
+<ResponseField name="scope" type="string | null">
+  Applicability scope label, e.g. `"project:Atlas"`. `null` for unscoped facts and episodes.
+</ResponseField>
+
+---
+
+## facts_about
+
+Retrieve the complete history of all facts ever recorded for a specific entity — including superseded facts, their validity windows, and which fact replaced each one. Use this to audit what Smriti knows about a person, place, or concept.
+
+```json
+{
+  "tool": "facts_about",
+  "arguments": {
+    "entity": "Rachel"
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "entity": "Rachel",
+  "facts": [
+    {
+      "statement": "Rachel is a junior developer.",
+      "valid_from": "2025-11-01",
+      "invalid_at": "2026-04-15",
+      "superseded_by": "fact-uuid-002"
+    },
+    {
+      "statement": "Rachel is a senior developer.",
+      "valid_from": "2026-04-15",
+      "invalid_at": null,
+      "superseded_by": null
+    }
+  ]
+}
+```
+
+<ParamField body="entity" type="string" required>
+  The canonical entity name to retrieve facts for. Must match the name used during extraction or supplied via `add_alias`.
+</ParamField>
+
+**Returns:** An object with the entity name and a complete ordered array of all fact records for that entity, including their full validity windows and supersession chains.
+
+<Tip>
+Use `facts_about` to verify that Smriti correctly recorded a knowledge update. If a user changed cities, you should see the old fact with a non-null `invalid_at` and the new fact with `invalid_at: null`.
+</Tip>
+
+---
+
+## add_fact
+
+Write a single explicit fact directly to the store, bypassing LLM extraction. Use this when your agent has already determined a fact and wants to store it with precise control over subject, predicate, object, and scope.
+
+```json
+{
+  "tool": "add_fact",
+  "arguments": {
+    "statement": "Rachel leads the Atlas backend team.",
+    "subject": "Rachel",
+    "predicate": "team_lead",
+    "object": "Atlas backend team",
+    "entities": ["Rachel", "Atlas"],
+    "scope": "project:Atlas"
+  }
+}
+```
+
+<ParamField body="statement" type="string" required>
+  A complete, self-contained natural-language statement of the fact.
+</ParamField>
+
+<ParamField body="subject" type="string" required>
+  The entity the fact is primarily about. Used for entity graph linking and supersession checks.
+</ParamField>
+
+<ParamField body="predicate" type="string" required>
+  The predicate or relationship type. Single-valued predicates (e.g. `primary_programming_language`, `preferred_theme`) automatically supersede an existing fact with the same subject, predicate, and scope.
+</ParamField>
+
+<ParamField body="object" type="string" required>
+  The value or object of the predicate.
+</ParamField>
+
+<ParamField body="entities" type="array[string]" required>
+  All entities mentioned in the fact. Smriti creates entity records and graph links for each.
+</ParamField>
+
+<ParamField body="scope" type="string">
+  Applicability scope for the fact, e.g. `"project:Atlas"`. Omit for globally applicable facts.
+</ParamField>
+
+**Returns:** `string` — the UUID of the newly created fact record.
+
+<Note>
+Direct `add_fact` calls are always trusted writes. They bypass extraction validation and scope-grounding checks. Use them when the agent has high confidence in the fact's accuracy and structure.
+</Note>
+
+---
+
+## stats
+
+Return a summary of the memory store's current state — episode count, fact count, valid fact count, entity count, and active mode.
+
+```json
+{
+  "tool": "stats",
+  "arguments": {}
+}
+```
+
+**Example response:**
+
+```json
+{
+  "episodes": 142,
+  "facts": 87,
+  "valid_facts": 64,
+  "entities": 23,
+  "mode": "full"
+}
+```
+
+<ResponseField name="episodes" type="integer">
+  Total raw episodic records in the store.
+</ResponseField>
+
+<ResponseField name="facts" type="integer">
+  Total fact records, including superseded ones retained for history.
+</ResponseField>
+
+<ResponseField name="valid_facts" type="integer">
+  Currently valid (non-superseded) facts.
+</ResponseField>
+
+<ResponseField name="entities" type="integer">
+  Distinct entities tracked in the entity graph.
+</ResponseField>
+
+<ResponseField name="mode" type="string">
+  Active memory mode: `"lite"` or `"full"`.
+</ResponseField>
+
+<Accordion title="Quick tool selector">
+  | I want to… | Use this tool |
+  |---|---|
+  | Store a conversation | `remember` |
+  | Get memory as prompt-ready text | `recall` |
+  | Get memory as structured JSON results | `search` |
+  | See all history for a person or entity | `facts_about` |
+  | Write a fact with precise control | `add_fact` |
+  | Check what is stored in the database | `stats` |
+</Accordion>

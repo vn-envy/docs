@@ -1,19 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "KritXlabs",
+  "projectType": "saas",
+  "projectName": "KritXlabs",
+  "projectDescription": "A portfolio of AI-native products spanning agent memory, personal AI assistants, local business advertising, LLM quality engineering, and AI-powered career intelligence.",
   "theme": "luma",
-  "colors": {
-    "primary": "#6C3AFF",
-    "light": "#EDE8FF",
-    "dark": "#1A0A3B"
-  },
-  "favicon": "/favicon.svg",
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/vn-envy"
-    }
-  },
+  "primaryColor": "#6C3AFF",
+  "lightColor": "#EDE8FF",
+  "darkColor": "#1A0A3B",
   "navigation": {
     "tabs": [
       {
@@ -174,5 +166,43 @@
         ]
       }
     ]
-  }
+  },
+  "keyFeatures": [
+    "Smriti: Zero-infrastructure local-first AI agent memory with a single SQLite file",
+    "Smriti: Bi-temporal fact supersession — updates never delete, full history preserved",
+    "Smriti: Four-channel hybrid retrieval (BM25, semantic, entity-graph, temporal) fused via RRF",
+    "Smriti: Drop-in MCP server for Claude Code, Cursor, and any MCP-compatible agent",
+    "Narad: Privacy-first multi-agent personal AI system running entirely on your machine",
+    "Narad: Four specialist AI agents (Matsya, Rama, Krishna, Parashurama) orchestrated by Narad supervisor",
+    "Narad: Self-learning via Tapas — high-quality responses promoted as reusable Sutras",
+    "Narad: Fully local voice mode with Kokoro TTS and faster-whisper STT",
+    "Leadsy Flock: AI ad agency for neighbourhood shops — paste a Google listing URL, get a publication-ready ad kit",
+    "Leadsy Flock: Bilingual creative (English + Indic), Veo 3.1 video, multi-ratio delivery for Meta, WhatsApp, Google",
+    "PRISM: Six Sigma SPC applied to LLM qualification — Cpk, DPMO, sigma level per model",
+    "PRISM: 3-judge Gauge R&R panel for measurement reliability; Bayesian posterior MatchScore",
+    "Rolecrft: AI-scored resume analysis against a specific job description with 8-category rubric",
+    "Rolecrft: AI-edited resume, ATS keyword gap scan, STAR stories, interview question bank, and networking scripts"
+  ],
+  "publicApiSurface": [
+    "Smriti: Smriti(path, embedder, llm, mode, ...options)",
+    "Smriti: mem.add(messages, timestamp, session_id)",
+    "Smriti: mem.search(query, k, profile, channels)",
+    "Smriti: mem.context(query, profile, char_budget)",
+    "Smriti: mem.add_fact(fact, resolve_conflicts)",
+    "Smriti: mem.erase_session(session_id) / mem.erase_entity(entity)",
+    "Smriti: mem.export_json(path) / mem.import_json(path)",
+    "Smriti: mem.stats()",
+    "Smriti MCP: remember, recall, search, facts_about, add_fact, stats",
+    "Smriti CLI: smriti-mcp --db, smriti-doctor --db",
+    "Narad API: POST /chat (SSE), GET /sutras, POST /sutras/{id}/accept, GET /karma",
+    "Narad API: GET /trace/{session_id}, GET /plan/{session_id}, GET /tiers",
+    "Narad API: GET /connections, POST /connections, GET /voice/status",
+    "Narad CLI: narad-server [--host] [--port] [--reload]",
+    "Leadsy Flock API: POST /v1/campaigns, GET /v1/campaigns/{id}, POST /v1/campaigns/{id}/approve",
+    "Leadsy Flock API: POST /v1/consents, GET /k/{campaign_id}, GET /l/{campaign_id}",
+    "PRISM API: POST /measure, GET /health",
+    "PRISM CLI: python measure.py --intent --trials --lsl --candidates --output",
+    "Rolecrft: POST /.netlify/functions/transform (LLM proxy)",
+    "Rolecrft: POST /.netlify/functions/search (web search proxy)"
+  ]
 }

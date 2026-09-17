@@ -1,0 +1,432 @@
+---
+title: "Smriti Python SDK Full API Reference"
+sidebarTitle: "Python SDK"
+description: "Complete reference for the Smriti Python class: constructor parameters, all public methods, return types, and usage examples grouped by purpose."
+---
+
+The Smriti Python SDK exposes a single public class — `Smriti` — that manages your SQLite-backed memory store. Instantiate it once, call `add()` to store conversations, call `search()` or `context()` to retrieve relevant memories, and call `close()` when done (or use it as a context manager). This page documents every constructor parameter and public method.
+
+## Constructor
+
+Import and instantiate `Smriti` with at minimum a database path. All other parameters have defaults that enable offline, lite-mode operation.
+
+```python
+from smriti import Smriti, LLM
+from smriti.embedder import OllamaEmbedder
+
+mem = Smriti(
+    path="memory.db",
+    embedder=OllamaEmbedder("nomic-embed-text"),
+    llm=LLM("qwen3:14b", provider="ollama"),
+    mode="full",
+)
+```
+
+<ParamField body="path" type="str" required>
+  Path to the SQLite database file. Created if it does not exist. Use an absolute path for stability across working-directory changes.
+</ParamField>
+
+<ParamField body="embedder" type="Embedder">
+  The embedder instance to use for all vector operations. Defaults to `HashEmbedder(dim=256)` if not provided. The choice is locked to the database on first open — changing it requires a new file or a legacy adoption. See [Embedders](/smriti/embedders) for all options.
+</ParamField>
+
+<ParamField body="llm" type="LLM">
+  The LLM client used for fact extraction and semantic arbitration in full mode. Not used in lite mode. Construct with `LLM(model, provider, base_url, api_key)`.
+</ParamField>
+
+<ParamField body="mode" type='"lite" | "full" | "laghu" | "purna"' default='"lite"'>
+  Memory mode. `"lite"` (alias `"laghu"`) ingests episodes and enables 4-channel retrieval with no LLM calls at write time. `"full"` (alias `"purna"`) adds fact extraction, temporal consolidation, and supersession — it makes at least one LLM call per session added.
+</ParamField>
+
+<ParamField body="redact" type="bool" default="False">
+  When `True`, Smriti strips personally identifiable information from stored episodes before embedding and indexing.
+</ParamField>
+
+<ParamField body="dedupe" type="bool" default="True">
+  When `True`, identical session replays are detected and skipped rather than creating duplicate episodes.
+</ParamField>
+
+<ParamField body="embed_episodes" type="bool" default="True">
+  When `True`, raw episodes are embedded alongside facts, enabling semantic search over the original conversation text as a recall safety net.
+</ParamField>
+
+<ParamField body="expand_keys" type="bool" default="True">
+  When `True`, the deep profile and iterative retrieval expand queries using entity aliases and key variants to improve coverage.
+</ParamField>
+
+<ParamField body="aggregate" type="bool" default="True">
+  When `True`, full-mode extraction merges closely related facts into single canonical statements rather than storing each mention separately.
+</ParamField>
+
+<ParamField body="stem" type="bool" default="True">
+  When `True`, the lexical channel applies stemming to improve BM25 recall for morphological variants.
+</ParamField>
+
+<ParamField body="semantic_entities" type="bool" default="True">
+  When `True`, entity linking uses semantic similarity in addition to exact name matching, improving graph connectivity for paraphrased or abbreviated entity names.
+</ParamField>
+
+---
+
+## Writing memory
+
+These methods add new information to the memory store.
+
+### `mem.add()`
+
+Store a conversation session and extract facts from it. This is the primary write operation.
+
+```python
+receipt = mem.add(
+    messages=[
+        {"role": "user", "content": "I moved to Bengaluru on June 1st."}
+    ],
+    timestamp="2026-06-02T10:00:00Z",
+    session_id="session-abc-123",
+)
+print(receipt)
+# {"session_id": "session-abc-123", "episodes": 1, "facts": 2}
+```
+
+<ParamField body="messages" type="list[dict]" required>
+  The conversation to store. Each dict must have `"role"` (`"user"` or `"assistant"`) and `"content"` (string) keys.
+</ParamField>
+
+<ParamField body="timestamp" type="str">
+  ISO 8601 timestamp for the session. Used as the validity anchor for extracted facts. Defaults to the current UTC time if omitted.
+</ParamField>
+
+<ParamField body="session_id" type="str">
+  A caller-supplied identifier for this session. Smriti generates a UUID if omitted. Use stable IDs to enable `erase_session()` later.
+</ParamField>
+
+<ResponseField name="session_id" type="str">
+  The session identifier (caller-supplied or generated).
+</ResponseField>
+
+<ResponseField name="episodes" type="int">
+  Number of episodic records written.
+</ResponseField>
+
+<ResponseField name="facts" type="int">
+  Number of facts extracted and stored (full mode only; 0 in lite mode).
+</ResponseField>
+
+---
+
+### `mem.add_fact()`
+
+Write a single explicit fact directly, bypassing LLM extraction. Direct writes are always trusted and not subject to extraction validation.
+
+```python
+from smriti import Fact
+
+mem.add_fact(
+    Fact(
+        statement="Alice is the lead architect on project Atlas.",
+        subject="Alice",
+        predicate="role",
+        object="lead architect",
+        entities=["Alice", "Atlas"],
+        scope="project:Atlas",
+    ),
+    resolve_conflicts=True,
+)
+```
+
+<ParamField body="fact" type="Fact" required>
+  A `Fact` instance describing the information to store. See the fields below.
+</ParamField>
+
+<ParamField body="resolve_conflicts" type="bool" default="True">
+  When `True`, Smriti checks for existing facts with the same subject, predicate, and scope, and supersedes them if appropriate.
+</ParamField>
+
+---
+
+### `mem.add_alias()`
+
+Register an alternative name for a canonical entity. Aliases allow the entity channel to find memories about "Bob" when the query mentions "Robert".
+
+```python
+mem.add_alias(canonical="Robert Chen", alias="Bob")
+```
+
+<ParamField body="canonical" type="str" required>
+  The primary entity name as it appears in stored facts.
+</ParamField>
+
+<ParamField body="alias" type="str" required>
+  The alternative name to link to the canonical entity.
+</ParamField>
+
+---
+
+## Reading memory
+
+These methods retrieve information from the memory store.
+
+### `mem.search()`
+
+Search memory and return a ranked list of structured results. Use this when you need individual result objects — scores, validity metadata, and provenance — rather than a packed string.
+
+```python
+results = mem.search(
+    query="where do I live?",
+    k=5,
+    profile="facts",
+    session_diverse=True,
+    session_overfetch=3,
+)
+for r in results:
+    print(r.text, r.score, r.valid_from, r.invalid_at)
+```
+
+<ParamField body="query" type="str" required>
+  The natural-language query to search for.
+</ParamField>
+
+<ParamField body="k" type="int" default="5">
+  Maximum number of results to return after fusion and reranking.
+</ParamField>
+
+<ParamField body="profile" type="str | RetrievalProfile">
+  Named profile string (`"facts"`, `"relations"`, `"timeline"`, `"deep"`, `"auto"`, `"precision"`) or a custom `RetrievalProfile` instance.
+</ParamField>
+
+<ParamField body="channels" type="set[str]">
+  Explicit channel set, overriding the profile's defaults. Valid values: `"lexical"`, `"semantic"`, `"entity"`, `"temporal"` (or Sanskrit aliases).
+</ParamField>
+
+<ParamField body="session_diverse" type="bool" default="False">
+  Opt-in session-diversity boosting. Spreads results across more distinct source sessions.
+</ParamField>
+
+<ParamField body="session_overfetch" type="int" default="3">
+  Multiplier for internal overfetching when `session_diverse=True`. Fetch `k × session_overfetch` candidates, then select the most diverse `k`.
+</ParamField>
+
+**Returns:** `List[RetrievalResult]`
+
+<ResponseField name="kind" type='"fact" | "episode"'>
+  Whether the result is a consolidated fact or a raw episode.
+</ResponseField>
+
+<ResponseField name="text" type="str">
+  The retrieved text, annotated with validity metadata.
+</ResponseField>
+
+<ResponseField name="score" type="float">
+  Fused relevance score from Reciprocal Rank Fusion.
+</ResponseField>
+
+<ResponseField name="valid_from" type="str | None">
+  ISO 8601 date from which this fact is valid. `None` for episodes.
+</ResponseField>
+
+<ResponseField name="invalid_at" type="str | None">
+  ISO 8601 date at which this fact was superseded. `None` if still current.
+</ResponseField>
+
+<ResponseField name="scope" type="str | None">
+  Applicability scope of the fact, e.g. `"project:Atlas"`. `None` for unscoped facts.
+</ResponseField>
+
+---
+
+### `mem.context()`
+
+Retrieve memory and return it as a budget-capped, prompt-ready string. Use this when you want to inject memory directly into a prompt without processing individual results.
+
+```python
+context = mem.context(
+    query="where do I live?",
+    profile="facts",
+    char_budget=4096,
+)
+print(context)
+```
+
+<ParamField body="query" type="str" required>
+  The natural-language query to retrieve context for.
+</ParamField>
+
+<ParamField body="profile" type="str | RetrievalProfile">
+  Retrieval profile. Defaults to `"auto"`.
+</ParamField>
+
+<ParamField body="char_budget" type="int" default="8000">
+  Maximum character length of the returned context string. Results are packed in relevance order; lower-ranked items are dropped if the budget is exceeded.
+</ParamField>
+
+**Returns:** `str` — a plain-text context block with validity annotations, ready to prepend to a prompt.
+
+---
+
+### `mem.search_iterative()`
+
+Run multiple rounds of retrieval, expanding the query with entity signals from each round's results. Use this for questions that require following chains of connected facts.
+
+```python
+results = mem.search_iterative(
+    query="who introduced me to the Atlas team?",
+    k=5,
+    rounds=2,
+)
+```
+
+<ParamField body="query" type="str" required>
+  The natural-language query to search for.
+</ParamField>
+
+<ParamField body="k" type="int" default="5">
+  Number of results to return after the final round.
+</ParamField>
+
+<ParamField body="rounds" type="int" default="2">
+  Number of retrieval rounds. Each round uses the previous round's top-entity signals to expand the query.
+</ParamField>
+
+**Returns:** `List[RetrievalResult]` — same schema as `mem.search()`.
+
+---
+
+### `mem.context_iterative()`
+
+Multi-hop context building. Equivalent to `search_iterative()` but returns a packed, budget-capped string instead of a result list.
+
+```python
+context = mem.context_iterative(
+    query="who introduced me to the Atlas team?",
+    rounds=2,
+)
+```
+
+<ParamField body="query" type="str" required>
+  The natural-language query to retrieve context for.
+</ParamField>
+
+<ParamField body="rounds" type="int" default="2">
+  Number of retrieval rounds.
+</ParamField>
+
+**Returns:** `str` — packed context string with validity annotations.
+
+---
+
+## Maintenance and export
+
+These methods let you inspect, prune, and migrate your memory store.
+
+### `mem.refresh_observations()`
+
+Regenerate observation digests for stored entities. Only available in full mode. Call this periodically to keep summaries current as new facts accumulate.
+
+```python
+mem.refresh_observations(min_facts=5, granularity="entity")
+```
+
+<ParamField body="min_facts" type="int" default="3">
+  Minimum number of facts an entity must have before its observations are regenerated.
+</ParamField>
+
+<ParamField body="granularity" type='"entity" | "global"' default='"entity"'>
+  Whether to regenerate observations per entity or build a single global digest.
+</ParamField>
+
+---
+
+### `mem.erase_session()`
+
+Permanently remove all episodes associated with a session ID. This is the intended path for explicit user erasure requests.
+
+```python
+mem.erase_session("session-abc-123")
+```
+
+<ParamField body="session_id" type="str" required>
+  The session identifier to erase.
+</ParamField>
+
+---
+
+### `mem.erase_entity()`
+
+Permanently remove all facts and entity records associated with an entity name, including superseded history.
+
+```python
+mem.erase_entity("Alice")
+```
+
+<ParamField body="entity" type="str" required>
+  The canonical entity name to erase.
+</ParamField>
+
+---
+
+### `mem.export_json()` / `mem.import_json()`
+
+Export the full memory store to a portable JSON file, or import from one. Export is lossless for the core schema — episodes, facts, supersession chains, and embeddings are all preserved.
+
+```python
+mem.export_json("backup-2026-06-01.json")
+
+# Restore into a new database
+mem2 = Smriti(path="restored.db", embedder=OllamaEmbedder("nomic-embed-text"))
+mem2.import_json("backup-2026-06-01.json")
+```
+
+<ParamField body="path" type="str" required>
+  File path for the JSON export or import.
+</ParamField>
+
+<Warning>
+Core JSON export does not include enterprise governance metadata (retention holds, audit sinks, verified packs). For enterprise backups, use `enterprise_mem.snapshot(path)` or `enterprise_mem.build_pack(path, name=...)`.
+</Warning>
+
+---
+
+### `mem.stats()`
+
+Return a summary of the memory store's current state.
+
+```python
+print(mem.stats())
+# {"episodes": 142, "facts": 87, "valid_facts": 64, "entities": 23, "mode": "full"}
+```
+
+<ResponseField name="episodes" type="int">
+  Total number of raw episodic records stored.
+</ResponseField>
+
+<ResponseField name="facts" type="int">
+  Total number of fact records, including superseded ones.
+</ResponseField>
+
+<ResponseField name="valid_facts" type="int">
+  Number of currently valid (non-superseded) facts.
+</ResponseField>
+
+<ResponseField name="entities" type="int">
+  Number of distinct entities tracked in the graph.
+</ResponseField>
+
+<ResponseField name="mode" type="str">
+  The active mode: `"lite"` or `"full"`.
+</ResponseField>
+
+---
+
+### `mem.close()`
+
+Release the database connection and flush any pending WAL frames. Always call `close()` when you are done, or use `Smriti` as a context manager to have it called automatically.
+
+```python
+# Explicit close
+mem.close()
+
+# Context manager — close() is called on exit, including on exceptions
+with Smriti(path="memory.db", embedder=OllamaEmbedder("nomic-embed-text")) as mem:
+    mem.add([{"role": "user", "content": "Hello"}])
+    context = mem.context("greetings")
+```

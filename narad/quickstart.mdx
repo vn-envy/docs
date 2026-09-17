@@ -1,0 +1,114 @@
+---
+title: "Get Narad Running on Your Machine in Minutes"
+sidebarTitle: "Quickstart"
+description: "Clone the repo, build the frontend, start the server, and send your first message to Narad — all in under five minutes on macOS or Linux."
+---
+
+Getting Narad running takes one terminal session. You clone the repository, create a Python virtual environment, build the React frontend, and start the server — then open your browser and start chatting. Narad works with zero API keys (it degrades honestly to its free local model tier), so you can send your first message immediately and add keys later from the UI.
+
+<Note>
+  Narad binds to `127.0.0.1:8000` by default. Nothing is exposed to your local network or the internet unless you explicitly pass `--host 0.0.0.0`. Keep this default for normal personal use.
+</Note>
+
+## macOS Shortcut
+
+If you prefer not to use the terminal, double-click **`Start Narad.command`** in the cloned repo folder. The first run installs everything (virtual environment + frontend build, a few minutes); after that it starts in seconds and opens `http://127.0.0.1:8000` in your browser automatically. Close the Terminal window to stop the server.
+
+## Step-by-Step Installation
+
+<Steps>
+  <Step title="Clone the repository and install the backend">
+    Open a terminal and run the following three commands. The `pip install -e .` step installs Narad and all its Python dependencies in editable mode so you can update by pulling the latest commits later.
+
+    ```bash
+    git clone https://github.com/vn-envy/Narad.git && cd Narad
+    python3 -m venv .venv && source .venv/bin/activate
+    pip install -e .
+    ```
+
+    **Requirements:** Python ≥ 3.11, Git. The virtual environment keeps Narad's dependencies isolated from your system Python.
+  </Step>
+
+  <Step title="Build the frontend">
+    Narad serves its own React UI from the same origin as the API server — no separate dev server, no CORS issues. Run the build once; you only need to repeat this step when you pull new frontend changes.
+
+    ```bash
+    cd phase-4/frontend && npm ci && npm run build && cd ../..
+    ```
+
+    **Requirements:** Node ≥ 20. `npm ci` installs exact locked dependencies; `npm run build` produces the static bundle that `narad-server` serves.
+  </Step>
+
+  <Step title="Start the server">
+    Activate your virtual environment if it is not already active, then start the server:
+
+    ```bash
+    source .venv/bin/activate   # skip if already active
+    narad-server
+    ```
+
+    You should see output confirming the server is listening on `http://127.0.0.1:8000`. The server starts with zero keys and auto-detects your hardware tier immediately.
+  </Step>
+
+  <Step title="Open the browser UI">
+    Navigate to `http://127.0.0.1:8000` in your browser. The chat interface loads with the **AwarenessBar** on the right edge showing the four Avatāra status pills and a token counter. The Dashboard drawer (top-right) gives you access to Darshan, Karma, Sutras, Memory, and the Kunji key manager.
+
+    Narad is ready to use. You do not need an API key for the first message — the system operates at the free local tier.
+  </Step>
+
+  <Step title="Add your first API key (optional)">
+    For cloud models, richer web search, and media generation, open the **Dashboard → Kunji** tab. Paste your API key into the input field — Narad auto-detects the provider from the key prefix, runs a live one-token test call to verify it, and stores the key in your OS keychain (macOS Keychain, libsecret on Linux). You never need to export environment variables manually.
+
+    | Key prefix | Provider |
+    |------------|----------|
+    | `dsk-` | DeepSeek (router + Tapas judge) |
+    | `AIza` | Google Gemini (embeddings + media) |
+    | `tvly-` | Tavily (Matsya web search) |
+    | `sk-ant-` | Anthropic Claude |
+
+    Alternatively, export keys in your shell before starting the server:
+
+    ```bash
+    export DEEPSEEK_API_KEY=dsk-...
+    export GEMINI_API_KEY=AIza...
+    export TAVILY_API_KEY=tvly-...
+    ```
+  </Step>
+
+  <Step title="Send your first message">
+    Type a message in the chat panel and press Enter. Narad reads your request, selects the appropriate Avatāra(s), and streams the response. Watch the **AwarenessBar** on the right — the relevant Avatāra pills pulse as they run. The **Darshan** tab in the Dashboard shows the live call graph with latency badges.
+
+    Try these to explore different Avatāras:
+
+    - *"Summarise the latest research on RAG architectures"* → routes to **Matsya** (web research)
+    - *"Create a budget plan for next month"* → routes to **Rama** (finance planning)
+    - *"Draft an email to my team about the release"* → routes to **Krishna** (communication)
+    - *"Write a Python function to parse a CSV and return a dict"* → routes to **Parashurama** (code)
+  </Step>
+</Steps>
+
+## CLI Reference
+
+Use these flags to control how the server starts:
+
+```bash
+narad-server                    # Start at 127.0.0.1:8000 (default)
+narad-server --host 0.0.0.0     # Bind to all interfaces (LAN/Tailscale access)
+narad-server --port 8080        # Use a custom port
+narad-server --reload           # Development mode with auto-restart on code changes
+```
+
+<Warning>
+  If you bind to `0.0.0.0` on an untrusted network, set `NARAD_AUTH=strict` so every request requires the bearer token stored at `~/.narad/config/api_token`. The default `NARAD_AUTH=local` trusts loopback only.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation Details" icon="wrench" href="/narad/installation">
+    Voice support, environment variables, and platform-specific notes for macOS and Linux.
+  </Card>
+  <Card title="Meet the Avatāras" icon="users" href="/narad/avatars">
+    Learn what each specialist agent does and how Narad decides which one to call.
+  </Card>
+</CardGroup>

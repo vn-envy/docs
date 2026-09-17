@@ -1,0 +1,211 @@
+---
+title: "Bi-Temporal Memory: Updates Without Deletion"
+sidebarTitle: "Bi-Temporal"
+description: "Understand how Smriti uses validity windows to supersede outdated facts while preserving full history, enabling both current-state and as-of queries."
+---
+
+Smriti never deletes a fact. When your agent learns that something has changed — a new home city, a switched job, a revised project goal — the old fact is not overwritten or removed. Instead, Smriti **supersedes** it: the old fact receives an `invalid_at` timestamp and a new fact is created. Both records remain in the store, queryable at any time. This design gives you accurate answers about the present and full auditability of the past, all from one SQLite file.
+
+## Two Time Axes
+
+Every fact in Smriti exists on two independent time axes:
+
+| Axis | Fields | What it records |
+|---|---|---|
+| **World time** (avadhi) | `valid_from`, `invalid_at` | When the fact was true in the real world |
+| **Ingestion time** | `ingested_at` | When Smriti learned about the fact |
+
+These are different things. A user might tell Smriti today that they moved to Bengaluru *on June 1st*. The world-time axis records June 1st as `valid_from`; the ingestion time records today. This distinction lets you reconstruct what was true at any point in the past, even if the system learned about it later.
+
+## How Supersession Works: A Concrete Example
+
+The following sequence shows what happens to the fact store as a user's location changes over time.
+
+<Steps>
+  <Step title="First fact: user lives in Mumbai">
+    When your agent ingests this turn, Smriti (in full mode) extracts a fact and stores it with `valid_from` set to the session timestamp and `invalid_at` left as `None` — meaning the fact is currently valid.
+
+    ```python
+    mem.add([
+        {"role": "user", "content": "I live in Mumbai."},
+    ], timestamp="2026-01-15T10:00:00Z")
+    ```
+
+    **Fact store after this call:**
+
+    | id | statement | valid_from | invalid_at | superseded_by |
+    |---|---|---|---|---|
+    | 1 | "The user lives in Mumbai." | 2026-01-15 | `None` | `None` |
+  </Step>
+
+  <Step title="Update: user moves to Bengaluru">
+    When a later session reports the move, Smriti detects a conflict on the `(subject="user", predicate="lives_in")` pair. It sets `invalid_at` on the old fact, creates a new one, and links them via `superseded_by`.
+
+    ```python
+    mem.add([
+        {"role": "user", "content": "I moved to Bengaluru on June 1st."},
+    ], timestamp="2026-06-02T10:00:00Z")
+    ```
+
+    **Fact store after this call:**
+
+    | id | statement | valid_from | invalid_at | superseded_by |
+    |---|---|---|---|---|
+    | 1 | "The user lives in Mumbai." | 2026-01-15 | 2026-06-01 | 2 |
+    | 2 | "The user lives in Bengaluru." | 2026-06-01 | `None` | `None` |
+  </Step>
+
+  <Step title="Query: current state">
+    Asking "where do I live?" returns only the current fact. Smriti's default retrieval ranks `CURRENT` facts above superseded ones, so the Bengaluru fact appears first.
+
+    ```python
+    ctx = mem.context("where do I live?")
+    # KNOWN FACTS:
+    # - [2026-06-01 | CURRENT] The user lives in Bengaluru.
+    ```
+  </Step>
+
+  <Step title="Query: historical state">
+    Asking for the history explicitly — or using a temporal query — surfaces both facts with their validity annotations intact.
+
+    ```python
+    ctx = mem.context("where did I live before June?", profile="timeline")
+    # KNOWN FACTS:
+    # - [2026-01-15 | SUPERSEDED on 2026-06-01] The user lives in Mumbai.
+    # - [2026-06-01 | CURRENT] The user lives in Bengaluru.
+    ```
+  </Step>
+</Steps>
+
+## Querying Current vs. Historical Facts
+
+### Default behavior: current facts first
+
+All retrieval paths — `mem.search()`, `mem.context()`, and the MCP `recall` tool — rank currently valid facts above superseded ones by default. You do not need to filter anything; the right answer surfaces at the top.
+
+```python
+# Returns the latest known location — no extra filtering needed
+results = mem.search("where does the user live?", k=5)
+
+for r in results:
+    status = "CURRENT" if r.invalid_at is None else f"SUPERSEDED on {r.invalid_at[:10]}"
+    print(f"[{status}] {r.text}")
+```
+
+### Querying historical facts with the timeline profile
+
+When the user asks a time-anchored question, switch to the `timeline` profile. It boosts the temporal channel, disables current-first ranking, and packs results in chronological order.
+
+```python
+# "before June" triggers the temporal channel
+ctx = mem.context(
+    "where did I live before June 2026?",
+    profile="timeline",
+)
+```
+
+### Direct search over the full validity window
+
+If you need to programmatically inspect all versions of a fact — including superseded ones — search with `now` set to a past date. Smriti's validity-window logic will include facts that were valid at that moment.
+
+```python
+# Retrieve facts that were valid on 2026-03-01
+results = mem.search(
+    "where does the user live?",
+    now="2026-03-01T00:00:00Z",
+    k=5,
+)
+```
+
+## Scope: Project-Scoped Memory
+
+Facts can carry an optional `scope` field that restricts their applicability to a named context, such as `"project:Atlas"`. Scoped facts are stored, retrieved, and exported separately from unscoped (global) facts.
+
+```python
+from smriti.types import Fact
+
+# A fact that applies only to the Atlas project
+atlas_fact = Fact(
+    id=None,
+    statement="The primary language for project Atlas is Rust.",
+    subject="project:Atlas",
+    predicate="primary_programming_language",
+    object="Rust",
+    entities=["project:Atlas"],
+    scope="project:Atlas",
+    valid_from="2026-05-01T00:00:00Z",
+)
+mem.add_fact(atlas_fact)
+
+# A different project can have a different answer to the same predicate
+phoenix_fact = Fact(
+    id=None,
+    statement="The primary language for project Phoenix is Go.",
+    subject="project:Phoenix",
+    predicate="primary_programming_language",
+    object="Go",
+    entities=["project:Phoenix"],
+    scope="project:Phoenix",
+    valid_from="2026-05-01T00:00:00Z",
+)
+mem.add_fact(phoenix_fact)
+```
+
+Scope is preserved through the full lifecycle: conflict detection, retrieval, MCP structured results, and JSON exports all carry scope provenance. Only facts with the same `(subject, predicate, scope)` triplet trigger supersession against each other — cross-scope conflicts never occur.
+
+## Erasing Data: Owner Operations
+
+Supersession is a knowledge update — the fact changed. Erasure is a data-ownership operation — the owner wants specific content removed. These are deliberately distinct in Smriti, and neither is exposed through the MCP server to prevent untrusted conversation content from triggering destructive operations.
+
+### Erase all facts linked to an entity
+
+`mem.erase_entity()` removes every fact associated with a named entity. Raw episodes are left untouched — the verbatim conversation log is not affected.
+
+```python
+result = mem.erase_entity("Rachel")
+print(result)
+# {"entity": "rachel", "facts": 14}
+```
+
+### Erase an entire session
+
+`mem.erase_session()` cascades through everything ingested under a session ID: episodes, extracted facts, FTS index rows, entity links, embeddings, and the ingest-log entry. Derived observation summaries that overlap the erased facts are also removed (they can be regenerated from surviving facts).
+
+```python
+result = mem.erase_session("b7d2a0e1f356")
+print(result)
+# {"episodes": 3, "facts": 5, "observations": 2}
+```
+
+<Note>
+  **Supersession ≠ Erasure.** Supersession is how Smriti handles *knowledge updates* — the world changed, the old fact is still part of the record. Erasure is how you handle *data ownership* — a user asks for their information to be removed entirely. The distinction matters for audit trails: a superseded fact is evidence that an update occurred; an erased fact leaves no trace after the cascade.
+</Note>
+
+## Auditing the Supersession Chain
+
+Because every superseded fact keeps its `invalid_at` and `superseded_by` fields, you can walk the full chain of updates for any claim. This is the audit trail that lets you answer "when did our agent's belief about X change, and what triggered each update?"
+
+```python
+from smriti import Smriti
+
+mem = Smriti(path="memory.db",
+             embedder=OllamaEmbedder("nomic-embed-text"),
+             llm=LLM("qwen3:14b", provider="ollama"))
+
+# Search over all facts, including superseded ones, by querying with a past now
+all_location_facts = mem.search(
+    "where does the user live?",
+    now="2020-01-01T00:00:00Z",  # far in the past — captures everything
+    k=20,
+)
+
+for r in all_location_facts:
+    window_end = r.invalid_at[:10] if r.invalid_at else "present"
+    print(f"{r.valid_from[:10]} → {window_end}: {r.text}")
+# 2026-01-15 → 2026-06-01: The user lives in Mumbai.
+# 2026-06-01 → present:    The user lives in Bengaluru.
+```
+
+<Warning>
+  Smriti's vector channel uses an exact numpy scan, so querying with `now` set to a very early date and `k` set high will scan the full fact store. For large stores, prefer the `timeline` profile with a specific date anchor to constrain the search space.
+</Warning>

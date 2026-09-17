@@ -1,0 +1,143 @@
+---
+title: "Run Your First PRISM Model Evaluation in Minutes"
+sidebarTitle: "Quickstart"
+description: "Get PRISM running in demo mode without any API keys, interpret your first Cpk report, then go live with full model inference in four steps."
+---
+
+PRISM ships with a demo mode that returns realistic Six Sigma statistics without requiring any API keys — perfect for exploring the output format, testing your integration, or running in a CI environment before you've provisioned credentials. Follow the four steps below to get from a fresh clone to a ranked model report.
+
+<Steps>
+  <Step title="Clone the repository and install dependencies">
+    Clone the PRISM repository and install the Python dependencies into a virtual environment.
+
+    <CodeGroup>
+      ```bash Clone & install
+      git clone https://github.com/kritxlabs/prism.git
+      cd prism
+      python3 -m venv .venv
+      source .venv/bin/activate
+      pip install -r requirements.txt
+      ```
+
+      ```bash Windows (PowerShell)
+      git clone https://github.com/kritxlabs/prism.git
+      cd prism
+      python -m venv .venv
+      .venv\Scripts\Activate.ps1
+      pip install -r requirements.txt
+      ```
+    </CodeGroup>
+
+    PRISM requires Python 3.10 or higher. The `requirements.txt` includes FastAPI, Pydantic, and all statistical dependencies.
+  </Step>
+
+  <Step title="Run your first evaluation in demo mode">
+    Set the `PRISM_DEMO_MODE` environment variable to `true` and pass your intent in plain English. No API keys required.
+
+    <CodeGroup>
+      ```bash CLI (demo mode)
+      PRISM_DEMO_MODE=true python measure.py \
+        --intent "Hindi JSON extraction for kirana inventory" \
+        --output result.json
+      ```
+
+      ```bash With custom parameters
+      PRISM_DEMO_MODE=true python measure.py \
+        --intent "Hindi WhatsApp bot for kirana stores" \
+        --pillar language_fidelity \
+        --trials 3 \
+        --lsl 80 \
+        --candidates 5 \
+        --output result.json
+      ```
+
+      ```bash Smoke test (baseline DPMO)
+      python measure.py --smoke-test --output baseline.json
+      ```
+    </CodeGroup>
+
+    PRISM will auto-detect the relevant capability pillar from your intent text. You can override it with `--pillar` if needed. Available pillars: `structured_output`, `language_fidelity`, `reasoning`, `creative_generation`.
+  </Step>
+
+  <Step title="Interpret the output">
+    PRISM prints a ranked table to the console and writes the full JSON to your output file. Here is a sample console output:
+
+    ```
+    ======================================================================
+      PRISM RESULTS — Process Capability Report
+    ======================================================================
+      Intent: Hindi JSON extraction for kirana inventory
+      Pillar: structured_output
+      Trials: 5/5
+      Wall clock: 47.3s
+      Total cost: $0.1842
+      Gauge R&R reliable: True
+    ----------------------------------------------------------------------
+
+      Rank  Model                     Cpk      σ-level      DPMO        μ       σ       Verdict
+      -----------------------------------------------------------------------------------------
+      1     Qwen 2.5 72B              1.58     5.1σ         233         91.4    2.1     excellent
+      2     Llama 3.3 70B             1.41     4.8σ         1350        89.7    2.8     production_grade
+      3     Sarvam-M 24B              1.37     4.7σ         1350        87.3    2.6     production_grade
+      4     DeepSeek V3               1.22     4.3σ         6210        88.9    4.1     marginal
+      5     Mistral 7B v0.3           0.61     2.9σ         66807       78.2    8.9     incapable
+
+    ======================================================================
+      Legend: Cpk ≥ 1.33 = production-grade | 4σ+ = acceptable | DPMO < 6,210 = good
+    ======================================================================
+    ```
+
+    Focus on three numbers for each model:
+
+    - **Cpk**: The primary ranking signal. Anything ≥ 1.33 is safe to ship.
+    - **DPMO**: How many of a million calls will fall below your quality floor. Under 6,210 is the Four Sigma standard.
+    - **σ (sigma)**: Standard deviation of trial scores. A tight sigma is what earns a high Cpk.
+
+    The full `result.json` contains `trial_scores` for every model, which you can plot as a Shewhart control chart to visualize consistency over time.
+  </Step>
+
+  <Step title="Go live with real API keys">
+    Copy the example environment file and fill in your credentials to run real model inference.
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Open `.env` and add your keys:
+
+    ```env
+    ANTHROPIC_API_KEY=sk-ant-...
+    OPENAI_API_KEY=sk-...
+    GROQ_API_KEY=gsk_...
+    TOGETHER_API_KEY=...
+    DEEPSEEK_API_KEY=...
+    SARVAM_API_KEY=...
+    ```
+
+    Then run the measurement without the `PRISM_DEMO_MODE` prefix:
+
+    ```bash
+    python measure.py --intent "Hindi JSON extraction for kirana inventory" --output result.json
+    ```
+
+    <Note>
+      Live mode requires API keys for the **judge panel** (OpenAI for GPT-4o and GPT-4o-mini, Groq for Llama 3.3 70B) and for each **candidate model** you want to evaluate. At minimum, set `OPENAI_API_KEY` and `GROQ_API_KEY` to enable the Gauge R&R judge panel. Add provider-specific keys for the candidate models you want in scope.
+    </Note>
+  </Step>
+</Steps>
+
+## CLI Options Reference
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--intent` | *(required)* | Plain-English description of what you're building |
+| `--pillar` | auto-detect | Override pillar: `structured_output`, `language_fidelity`, `reasoning`, `creative_generation` |
+| `--trials` | `5` | Number of measurement trials per model (minimum 3 for valid σ) |
+| `--lsl` | `70` | Lower Specification Limit — your minimum acceptable score (0–100) |
+| `--candidates` | `5` | Maximum number of candidate models to evaluate |
+| `--output` | *(none)* | Path to write results JSON |
+| `--smoke-test` | — | Run baseline JSON compliance DPMO test across all 25 models |
+
+<Tip>
+  Set `--lsl` to match your actual quality requirement. If you need 85% accuracy for your use case, pass `--lsl 85`. A tighter LSL will produce lower Cpk scores and expose models that can't reliably meet your bar, even if they look fine on leaderboards.
+</Tip>

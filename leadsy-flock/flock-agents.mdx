@@ -1,0 +1,163 @@
+---
+title: "Meet the Leadsy Flock AI Agents"
+sidebarTitle: "Flock Agents"
+description: "Learn what each of Leadsy Flock's seven AI agents does — from Flo's conversational campaign briefing to Ray's consent-gated outreach sandbox."
+---
+
+Leadsy Flock's pipeline is powered by seven specialised AI agents, each with a single clear responsibility. No agent does another's job, and no expensive model call fires until you have approved the campaign. Together they take your shop from a listing URL to a full ad kit without requiring you to write a brief, design anything, or touch a video editor.
+
+<CardGroup cols={2}>
+  <Card title="Flo — Director" icon="comments">
+    Turns your freeform chat into a structured campaign brief. Powered by ADK + Gemini 3.5 Flash.
+  </Card>
+  <Card title="Bri — Strategist" icon="calculator">
+    Maps the brief to an engine bundle and calculates the rupee price. Fully deterministic — no LLM.
+  </Card>
+  <Card title="Scout — Tracker" icon="magnifying-glass">
+    Reads your listing, Maps data, and website to build a BrandSpec and competitor shelf.
+  </Card>
+  <Card title="Inka — Artist" icon="paintbrush">
+    Generates bilingual copy, Veo 3.1 films from your own photos, stills, and a Lyria audio sting.
+  </Card>
+  <Card title="Ledge — Auditor" icon="shield">
+    Three-layer Creative Gate that blocks prohibited claims before any copy reaches the kit.
+  </Card>
+  <Card title="Stella — Host" icon="globe">
+    Builds the consent-first landing page at `/l/{id}` with your brand theme and opt-in form.
+  </Card>
+  <Card title="Ray — Postbird" icon="paper-plane">
+    Sandbox outreach agent. Only fires after a consent record exists. Never cold-contacts anyone.
+  </Card>
+</CardGroup>
+
+---
+
+## Flo — Director
+
+Flo is the conversational front door to Leadsy Flock. Built on Google ADK 2.x with Gemini 3.5 Flash, Flo turns a freeform chat session into a fully structured campaign brief. You do not need to know what a "BrandSpec" is or how Veo works — you just tell Flo what you want in plain language.
+
+**What Flo collects:**
+- Business name and city / area
+- Campaign goal (footfall, online orders, awareness, etc.)
+- Target audience description
+- Budget in rupees
+- Campaign deadline
+- Google listing URL, website, or Maps link
+- Any photos you want to include
+
+**Key outputs:** Structured `CampaignBrief`, recommended team and price via Bri, campaign ID
+
+**ADK tools available to Flo:**
+
+| Tool | What it does |
+|------|--------------|
+| `list_flock()` | Returns the current flock roster so Flo can explain which agents will run |
+| `now_ist()` | Returns the current IST time for deadline calculations |
+| `recommend_team(business_name, geo, goal, budget_inr, audience, deadline, website)` | Calls Bri to get a bundle plan and rupee price |
+| `approve_plan(campaign_id)` | Sends the YES signal that starts the async pipeline |
+
+---
+
+## Bri — Strategist
+
+Bri is the only Flock member with no LLM inside. It is a deterministic catalog engine that receives Flo's structured brief and maps it to the right bundle of agents. Bri calculates the exact rupee price based on which agents will run, then returns the plan to Flo for you to review.
+
+**What Bri does:**
+- Evaluates budget, goal, and deadline to select Find, Launch, or Full bundle
+- Applies per-agent pricing (Scout ₹1,999 · Inka ₹2,499 · Stella ₹1,499 · Ray ₹1,999)
+- Validates that the budget is sufficient for the recommended bundle
+- Returns a line-item price breakdown
+
+**Key outputs:** Bundle recommendation, itemised rupee price, engine list
+
+<Info>
+  Bri runs before YES so you always know the exact cost before any expensive model calls begin. If the recommended bundle exceeds your stated budget, Bri suggests a smaller bundle rather than silently downgrading quality.
+</Info>
+
+---
+
+## Scout — Tracker
+
+Scout is the research agent. It uses Gemini with Google Search and Maps to read every public signal about your shop before Inka picks up a paintbrush. The result is a `BrandSpec` — a compact structured document that tells every downstream agent what your brand looks like, sounds like, and competes against.
+
+**What Scout reads:**
+- Your Google listing (name, category, photos, reviews, hours)
+- Google Maps data (location, nearby competitors)
+- Your website and menu PDF (if available)
+- Public ad libraries and trade coverage for comparable local ads
+
+**Key outputs:**
+- `BrandSpec`: theme ID, accent hex, palette (for image prompts), tone, tagline hints
+- `ownUris`: list of your own photo, video, and document URLs
+- Competitor insight: top local rivals and their positioning
+- Ad shelf: comparable ads in your category and city
+
+---
+
+## Inka — Artist
+
+Inka is the creative engine. It takes Scout's `BrandSpec` and your `ownUris`, then produces every piece of creative in the kit. Critically, Inka uses your real listing photos as reference frames when prompting Veo 3.1 — it never invents UGC or uses stock models to represent your shop.
+
+**What Inka produces:**
+
+- **Place film** — 8-second Veo 3.1 cinematic clip showing your interior or storefront
+- **Proof film** — 8-second Veo 3.1 clip showing your dish, product, or result
+- **Multi-ratio stills** — Derived from your own photos across all five aspect ratios
+- **Bilingual copy** — Headlines, primary text, and CTAs in English + local Indic language (e.g., Hindi for Gurgaon)
+- **Lyria audio sting** — 2-second instrumental music sting, no vocals
+
+Inka starts Veo asynchronously and returns immediately. The Harvest step polls for completion so the interactive pipeline path is never blocked waiting for a film render.
+
+---
+
+## Ledge — Auditor and Creative Gate
+
+Ledge is the safety gatekeeper. Every piece of copy Inka writes passes through Ledge's three-layer review before it can enter the kit. Ledge is fail-closed: if any layer raises a flag, the copy is blocked and the pipeline pauses until you resolve it.
+
+**Three-layer review:**
+1. **Regex pass** — Instant, deterministic block on hard-coded banned strings
+2. **Gemma classifier** — Lightweight on-device model that scores copy for prohibited claim categories
+3. **Gemini judge** — Full model review for nuanced cases that pass the first two layers
+
+<Note>
+  **Ledge blocks these claims outright:** "guaranteed", "miracle", "cure", "100%", "clinically proven", medical efficacy claims, unsubstantiated superlatives, and any language that implies a health or financial outcome. If your copy contains any of these, Ledge will flag the exact clause and pause the pipeline so you can revise it.
+</Note>
+
+All user-submitted text — including the listing URL and any freeform chat with Flo — is sanitised through Model Armor before it reaches any model.
+
+---
+
+## Stella — Host
+
+Stella builds the consent-first landing page that your kit's UTM links point to. It applies BrandSpec theme tokens (never hard-coded hex from the brief) and assembles a single-column page with your hero image, place film, and an opt-in form.
+
+**Landing page structure:**
+- Hero image at 16:9
+- Place film (autoplay muted, with captions in the safe zone)
+- Campaign headline and primary text (bilingual)
+- Opt-in form with an explicit consent checkbox (required)
+- CTA button
+
+**Key constraint:** The consent checkbox is mandatory. Stella's template cannot generate a form without it, and `POST /v1/consents` requires `consent: true` in the request body.
+
+**Themes available:** `inkstone` (default) · `ember` (gyms, energy) · `grove` (wellness) · `slate` (professional services) · `paper` (clinics, cafés)
+
+---
+
+## Ray — Postbird
+
+Ray handles outreach in sandbox mode. It is the only agent that contacts potential customers, and it has a hard gate: Ray refuses to run if there are zero consent records associated with the campaign. This means Ray can only reach people who have explicitly opted in via Stella's landing page.
+
+**What Ray does:**
+- Sends personalised follow-up messages to opted-in leads
+- Operates in sandbox mode — no messages reach real inboxes until you explicitly enable live mode
+- Logs every outreach attempt with a timestamp and consent record reference
+
+**What Ray never does:**
+- Cold-contacts anyone without a consent record
+- Autoposts to any social platform
+- Sends messages to the shop's existing customer list without new opt-ins
+
+<Warning>
+  Ray is included only in the Full bundle. If you are on Find or Launch, Ray does not run. Even on Full, Ray fires only after at least one visitor has opted in via the `/l/{campaign_id}` landing page.
+</Warning>

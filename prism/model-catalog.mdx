@@ -1,0 +1,93 @@
+---
+title: "PRISM Model Catalog: 25 Pre-Evaluated Candidate Models"
+sidebarTitle: "Model Catalog"
+description: "Browse all 25 models in PRISM's catalog with provider, parameter count, hardware tier, and HuggingFace prior scores used as Bayesian starting points."
+---
+
+PRISM maintains a catalog of 25 candidate models drawn from public open-weight releases and commercial APIs. Every model in the catalog has an archived HuggingFace leaderboard score for each of the four capability pillars. These scores serve as Bayesian priors — they provide a reasonable starting estimate before live trials begin, and they contribute 30% of the final MatchScore, with the remaining 70% coming from your measured evaluation.
+
+## How HuggingFace Priors Work
+
+When PRISM receives your intent, it selects the most relevant candidate models for live evaluation by ranking the catalog by their pillar-specific HuggingFace prior score. The top `--candidates` models (default: 5) proceed to the 5-trial measurement phase.
+
+After measurement, the prior blends with the measured result:
+
+```
+posterior_μ = 0.30 × hf_prior_score  +  0.70 × measured_μ
+```
+
+This prevents a single unlucky evaluation run from producing a misleading recommendation and provides a safety net when API latency causes fewer than 5 trials to complete within the 90-second budget.
+
+<Info>
+  The HuggingFace archive was locked on 2026-04-19. Prior scores will not change between runs, ensuring consistent pre-selection behaviour. PRISM evaluates candidate models against your specific intent, so measured results routinely differ from generic leaderboard rankings.
+</Info>
+
+## Capability Pillars
+
+Each model's prior score covers four pillars. PRISM uses the pillar-specific prior for pre-selection and MatchScore blending.
+
+| Pillar | What It Measures | Example Use Case |
+|--------|-----------------|-----------------|
+| `structured_output` | JSON/schema compliance, field accuracy | Receipt extraction, API response generation |
+| `language_fidelity` | Indic and multilingual generation quality | Hindi WhatsApp bots, regional language apps |
+| `reasoning` | Multi-step logic, math, analytical tasks | Decision support, complex Q&A |
+| `creative_generation` | Open-ended text quality, tone matching | Content generation, marketing copy |
+
+## Hardware Tiers
+
+| Tier | Parameter Range | Typical Latency | Typical Cost |
+|------|----------------|-----------------|-------------|
+| **low** | ≤ 13B params | < 1,000 ms | < $0.001 / 1K tokens |
+| **mid** | 14–40B params | 1,000–2,000 ms | $0.001–0.003 / 1K tokens |
+| **high** | > 40B params | > 2,000 ms | > $0.003 / 1K tokens |
+
+## Full Model Catalog
+
+| Model ID | Short Name | Provider | Params (B) | Tier | Avg Prior |
+|----------|-----------|---------|-----------|------|-----------|
+| `meta-llama/Llama-3.3-70B-Instruct` | Llama 3.3 70B | Together AI | 70 | high | 80.7 |
+| `meta-llama/Llama-3.1-70B-Instruct` | Llama 3.1 70B | Together AI | 70 | high | 78.0 |
+| `meta-llama/Llama-3.1-8B-Instruct` | Llama 3.1 8B | Together AI | 8 | low | 68.8 |
+| `mistralai/Mistral-Large-2` | Mistral Large 2 | Mistral | 123 | high | 80.8 |
+| `mistralai/Mistral-7B-Instruct-v0.3` | Mistral 7B v0.3 | Together AI | 7 | low | 63.4 |
+| `Qwen/Qwen2.5-72B-Instruct` | Qwen 2.5 72B | Together AI | 72 | high | 81.9 |
+| `Qwen/Qwen2.5-32B-Instruct` | Qwen 2.5 32B | Together AI | 32 | mid | 77.5 |
+| `Qwen/Qwen2.5-7B-Instruct` | Qwen 2.5 7B | Together AI | 7 | low | 69.4 |
+| `deepseek-ai/DeepSeek-V3` | DeepSeek V3 | DeepSeek | 671 | high | 82.1 |
+| `deepseek-ai/DeepSeek-R1` | DeepSeek R1 | DeepSeek | 671 | high | 80.1 |
+| `microsoft/phi-4` | Phi-4 14B | Together AI | 14 | mid | 73.5 |
+| `google/gemma-2-27b-it` | Gemma 2 27B | Together AI | 27 | mid | 73.5 |
+| `google/gemma-2-9b-it` | Gemma 2 9B | Together AI | 9 | low | 66.4 |
+| `sarvamai/sarvam-m-24b` | Sarvam-M 24B | Sarvam | 24 | mid | 76.9 |
+| `sarvamai/sarvam-2b` | Sarvam 2B | Sarvam | 2 | low | 62.2 |
+| `nvidia/Llama-3.1-Nemotron-70B-Instruct` | Nemotron 70B | Together AI | 70 | high | 78.9 |
+| `NousResearch/Hermes-3-Llama-3.1-70B` | Hermes 3 70B | Together AI | 70 | high | 78.5 |
+| `CohereForAI/c4ai-command-r-plus` | Command R+ | Cohere | 104 | high | 79.7 |
+| `01-ai/Yi-1.5-34B-Chat` | Yi 1.5 34B | Together AI | 34 | mid | 73.9 |
+| `internlm/internlm2_5-20b-chat` | InternLM 2.5 20B | Together AI | 20 | mid | 72.5 |
+| `ai21labs/Jamba-1.5-Large` | Jamba 1.5 Large | AI21 | 94 | high | 76.2 |
+| `databricks/dbrx-instruct` | DBRX 132B | Databricks | 132 | high | 74.4 |
+| `upstage/SOLAR-10.7B-Instruct-v1.0` | SOLAR 10.7B | Together AI | 10.7 | low | 65.0 |
+| `Nexusflow/Starling-LM-7B-beta` | Starling 7B | Together AI | 7 | low | 63.5 |
+| `teknium/OpenHermes-2.5-Mistral-7B` | OpenHermes 2.5 7B | Together AI | 7 | low | 64.6 |
+
+## Indic Language Specialists
+
+Two models in the catalog are purpose-built for Indian languages. When your intent contains Indic language keywords, PRISM automatically elevates these models into the candidate pool regardless of their general-purpose ranking.
+
+<CardGroup cols={2}>
+  <Card title="Sarvam-M 24B" icon="language">
+    **Provider**: Sarvam AI · **Tier**: mid · **24B parameters**
+
+    Supports Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, and Odia. Language fidelity prior of 89.5 — the highest in the catalog. Recommended for production Indic language applications requiring both quality and cost efficiency.
+  </Card>
+  <Card title="Sarvam 2B" icon="language">
+    **Provider**: Sarvam AI · **Tier**: low · **2B parameters**
+
+    Same 10-language coverage as Sarvam-M 24B at a fraction of the cost ($0.0004/1K tokens, ~400 ms latency). Language fidelity prior of 82.4. Use this model for high-volume, latency-sensitive Indic applications where cost is the primary constraint.
+  </Card>
+</CardGroup>
+
+<Warning>
+  DeepSeek V3 and DeepSeek R1 both show 671B parameters in the catalog. These are Mixture-of-Experts (MoE) architectures — only a subset of parameters is active per inference call. Their `hardware_tier: high` reflects the API cost and latency profile, not the active parameter count during inference.
+</Warning>

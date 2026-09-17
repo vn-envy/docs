@@ -1,0 +1,246 @@
+---
+title: "PRISM REST API Reference: Endpoints and Schemas"
+sidebarTitle: "API Reference"
+description: "Complete reference for PRISM's POST /measure and GET /health endpoints, including all request parameters, response fields, and a full JSON example."
+---
+
+PRISM exposes a FastAPI REST interface that lets you integrate Six Sigma model evaluation directly into your CI pipelines, internal tooling, or front-end dashboards. Start the server with `python3 -m uvicorn app.main:app --port 8000` and reach the interactive OpenAPI docs at `http://localhost:8000/docs`.
+
+## Base URL
+
+```
+http://localhost:8000
+```
+
+Set `PRISM_DEMO_MODE=true` in your environment to run the server without API keys. In live mode, ensure all required provider API keys are present in `.env` before starting.
+
+---
+
+## POST /measure
+
+Submit a builder intent and receive a ranked list of candidate models with full Six Sigma statistics.
+
+### Request
+
+```http
+POST /measure
+Content-Type: application/json
+```
+
+<ParamField body="intent" type="string" required>
+  Plain-English description of the task you want the LLM to perform. PRISM uses this text to auto-detect the capability pillar and generate relevant test cases.
+
+  Example: `"Hindi JSON extraction for kirana inventory"`
+</ParamField>
+
+<ParamField body="pillar" type="string">
+  Override the automatic pillar detection. Valid values: `structured_output`, `language_fidelity`, `reasoning`, `creative_generation`.
+
+  Omit this field to let PRISM auto-detect the pillar from your intent text.
+</ParamField>
+
+<ParamField body="n_trials" type="integer" default="5">
+  Number of measurement trials to run per candidate model. Minimum 3 for a valid standard deviation estimate. Maximum 30.
+</ParamField>
+
+<ParamField body="lsl" type="number" default="70">
+  Lower Specification Limit on the 0–100 composite score scale. Sets your minimum acceptable quality floor. Cpk and DPMO are both calculated relative to this value.
+</ParamField>
+
+**Example request body:**
+
+```json
+{
+  "intent": "Hindi JSON extraction for kirana inventory",
+  "pillar": "structured_output",
+  "n_trials": 5,
+  "lsl": 80
+}
+```
+
+### Response
+
+<ResponseField name="model_results" type="array">
+  Ranked list of model evaluation results, ordered by `match_score` descending.
+
+  <Expandable title="ModelResult fields">
+    <ResponseField name="model_id" type="string">
+      Full model identifier, e.g. `"meta-llama/Llama-3.3-70B-Instruct"`.
+    </ResponseField>
+
+    <ResponseField name="short_name" type="string">
+      Human-readable model name, e.g. `"Llama 3.3 70B"`.
+    </ResponseField>
+
+    <ResponseField name="mu" type="number">
+      Mean composite score across all trials (0–100).
+    </ResponseField>
+
+    <ResponseField name="sigma" type="number">
+      Standard deviation of composite scores across trials. Lower is better.
+    </ResponseField>
+
+    <ResponseField name="cpk" type="number">
+      Process Capability Index. Values ≥ 1.33 indicate production-grade reliability.
+    </ResponseField>
+
+    <ResponseField name="dpmo" type="number">
+      Defects Per Million Opportunities. Values below 6,210 correspond to Four Sigma quality.
+    </ResponseField>
+
+    <ResponseField name="sigma_level" type="number">
+      Sigma level converted from DPMO via the Motorola conversion table. Range 0–6.
+    </ResponseField>
+
+    <ResponseField name="match_score" type="number">
+      Bayesian MatchScore (0–100). Computed as `0.6 × posterior_μ + 0.4 × (100 − normalised_σ)`. The primary ranking metric.
+    </ResponseField>
+
+    <ResponseField name="verdict" type="string">
+      Human-readable verdict string: `excellent`, `production_grade`, `marginal`, `poor`, or `incapable`.
+    </ResponseField>
+
+    <ResponseField name="gauge_rr_pct" type="number">
+      Gauge R&R percentage for this model's measurement. Values below 30 indicate a trustworthy measurement.
+    </ResponseField>
+
+    <ResponseField name="cost_usd" type="number">
+      Total USD cost for all trials for this model.
+    </ResponseField>
+
+    <ResponseField name="latency_ms" type="number">
+      Average response latency in milliseconds across trials.
+    </ResponseField>
+
+    <ResponseField name="trial_scores" type="array">
+      Raw composite scores for each individual trial. Use these to render a Shewhart control chart.
+    </ResponseField>
+
+    <ResponseField name="lsl" type="number">
+      The Lower Specification Limit used in this evaluation (echoed from the request).
+    </ResponseField>
+
+    <ResponseField name="parameters_b" type="number">
+      Model parameter count in billions.
+    </ResponseField>
+
+    <ResponseField name="hardware_tier" type="string">
+      Hardware tier required to run this model: `low`, `mid`, or `high`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="wall_clock_seconds" type="number">
+  Total wall-clock time for the full measurement run in seconds.
+</ResponseField>
+
+<ResponseField name="total_cost_usd" type="number">
+  Aggregate USD cost across all candidate models and all trials.
+</ResponseField>
+
+<ResponseField name="trace_url" type="string">
+  Langfuse trace URL for full observability. `null` if Langfuse is not connected.
+</ResponseField>
+
+### Full Example
+
+<CodeGroup>
+  ```json Request
+  {
+    "intent": "Hindi JSON extraction for kirana inventory",
+    "pillar": "structured_output",
+    "n_trials": 5,
+    "lsl": 80
+  }
+  ```
+
+  ```json Response
+  {
+    "model_results": [
+      {
+        "model_id": "Qwen/Qwen2.5-72B-Instruct",
+        "short_name": "Qwen 2.5 72B",
+        "mu": 91.4,
+        "sigma": 2.1,
+        "cpk": 1.58,
+        "dpmo": 233,
+        "sigma_level": 5.1,
+        "match_score": 88.7,
+        "verdict": "excellent",
+        "gauge_rr_pct": 14.2,
+        "cost_usd": 0.0421,
+        "latency_ms": 1840,
+        "trial_scores": [89.2, 92.1, 91.8, 93.4, 90.5],
+        "lsl": 80.0,
+        "parameters_b": 72,
+        "hardware_tier": "high"
+      },
+      {
+        "model_id": "meta-llama/Llama-3.3-70B-Instruct",
+        "short_name": "Llama 3.3 70B",
+        "mu": 89.7,
+        "sigma": 2.8,
+        "cpk": 1.41,
+        "dpmo": 1350,
+        "sigma_level": 4.8,
+        "match_score": 86.2,
+        "verdict": "production_grade",
+        "gauge_rr_pct": 17.6,
+        "cost_usd": 0.0318,
+        "latency_ms": 2310,
+        "trial_scores": [87.4, 91.2, 88.6, 92.1, 89.2],
+        "lsl": 80.0,
+        "parameters_b": 70,
+        "hardware_tier": "high"
+      }
+    ],
+    "wall_clock_seconds": 47.3,
+    "total_cost_usd": 0.1842,
+    "trace_url": "https://cloud.langfuse.com/trace/abc123"
+  }
+  ```
+</CodeGroup>
+
+---
+
+## GET /health
+
+Check system status, confirm the evaluator SHA, and list available models.
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status. `"ok"` when all systems are operational; `"degraded"` if one or more providers are unreachable.
+</ResponseField>
+
+<ResponseField name="evaluator_sha" type="string">
+  Git SHA of the locked evaluator prompt template. Use this to confirm the evaluation criteria have not changed between runs.
+</ResponseField>
+
+<ResponseField name="models_available" type="array">
+  List of model IDs currently reachable via their respective provider APIs.
+</ResponseField>
+
+<ResponseField name="langfuse_connected" type="boolean">
+  Whether Langfuse observability is connected and traces will be written.
+</ResponseField>
+
+**Example response:**
+
+```json
+{
+  "status": "ok",
+  "evaluator_sha": "937202df1bb5b277e68ab0f749e827faf0f6eec4",
+  "models_available": [
+    "meta-llama/Llama-3.3-70B-Instruct",
+    "Qwen/Qwen2.5-72B-Instruct",
+    "sarvamai/sarvam-m-24b",
+    "deepseek-ai/DeepSeek-V3"
+  ],
+  "langfuse_connected": true
+}
+```
+
+<Note>
+  The `evaluator_sha` field lets you detect evaluator drift between runs. If this SHA changes, the scoring criteria have changed and historical Cpk scores are no longer directly comparable to new runs.
+</Note>

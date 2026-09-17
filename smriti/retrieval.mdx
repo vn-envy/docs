@@ -1,0 +1,207 @@
+---
+title: "Four-Channel Hybrid Retrieval in Smriti"
+sidebarTitle: "Retrieval"
+description: "Learn how Smriti's four retrieval channels fuse via Reciprocal Rank Fusion and how named profiles let you shape every search to your query's intent."
+---
+
+Getting the right memory back from an agent's store depends on asking in the right way. Smriti routes every query through up to four independent retrieval channels — lexical, semantic, entity, and temporal — then fuses their rankings into a single result list using Reciprocal Rank Fusion. You can run all four channels together, pick just the ones that fit your query, or let a named retrieval profile do the selection for you.
+
+## How Fusion Works: Reciprocal Rank Fusion (sangama)
+
+Each channel produces its own ranked list of hits. Rather than averaging scores — which breaks when channels use incompatible scales — Smriti combines them with **Reciprocal Rank Fusion (RRF)**, called *sangama* (संगम, "confluence of rivers") in the codebase.
+
+The idea is simple: a document ranked first by any channel contributes `1 / (rank + 60)` to its fused score. A document that appears in the top positions of multiple channels accumulates contributions from each one, naturally rising above documents that only one channel found. Documents absent from a channel contribute nothing.
+
+This means:
+- A fact that ranks #1 in both semantic and entity search beats a fact that ranks #1 in only one channel.
+- A rare but exact keyword match from lexical search can still surface even when semantic search misses it.
+- You can disable channels per query without re-tuning any weights.
+
+## The Four Channels
+
+<Accordion title="lexical — shabda (शब्द) · BM25 full-text search">
+  The lexical channel runs BM25 full-text search over both episodes and facts using SQLite's built-in FTS5 engine. It excels at **exact keyword matches**, error messages, code identifiers, proper nouns, and any query where the user's exact wording is likely to appear in stored content.
+
+  Use `lexical` when:
+  - The query contains specific error messages or stack traces
+  - You're searching for code, command names, or configuration keys
+  - Exact phrase matches matter more than conceptual similarity
+  - You want to skip embedding inference entirely (zero-cost retrieval path)
+
+  ```python
+  # BM25 only — no embedding call, fastest possible retrieval
+  results = mem.search("AttributeError: 'NoneType' has no attribute 'encode'",
+                       channels={"lexical"})
+  ```
+</Accordion>
+
+<Accordion title="semantic — artha (अर्थ) · vector cosine search">
+  The semantic channel embeds your query and runs a cosine similarity scan over stored episode and fact embeddings using numpy. It finds content that is **conceptually related** even when the exact words differ — paraphrases, synonyms, and cross-language equivalents.
+
+  Use `semantic` when:
+  - The query is a paraphrase of what was originally said
+  - The user asks broadly ("what do I enjoy?") and stored facts use specific language ("loves hiking")
+  - You need conceptual matching across vocabulary differences
+
+  ```python
+  # Semantic only — finds paraphrases and conceptual matches
+  results = mem.search("what are my hobbies?", channels={"semantic"})
+  ```
+
+  <Note>
+    The semantic channel uses an **exact numpy scan**, not approximate nearest-neighbor indexing. This keeps the implementation dependency-free and delivers sub-21ms warm retrieval at 36,500 records on a local machine. For multi-million-row deployments, evaluate ANN indexing separately.
+  </Note>
+</Accordion>
+
+<Accordion title="entity — sambandha (सम्बन्ध) · entity-hop graph traversal">
+  The entity channel walks the entity graph stored alongside facts. A 1-hop query finds all facts directly linked to entities named in your query. A 2-hop query extends outward one more step, reaching entities that are connected to the named entities — surfacing indirect relationships.
+
+  Use `entity` when:
+  - The query is about relationships ("who mentors Rachel?", "who works with Omar?")
+  - You need to discover second-degree connections
+  - Entity co-occurrence matters more than document similarity
+
+  ```python
+  # Entity graph traversal — finds relationship facts
+  ctx = mem.context("who mentors Rachel?", profile="relations")
+  ```
+</Accordion>
+
+<Accordion title="temporal — kala (काल) · temporal proximity scoring">
+  The temporal channel scores episodes and facts by their closeness to dates extracted from the query. It parses date expressions like "in June", "before March", or "last week" and ranks content by how near its timestamp falls to that anchor.
+
+  Use `temporal` when:
+  - The query asks "when did…", "what happened before…", or "what changed in…"
+  - Chronological ordering of results matters
+  - You need to reconstruct a timeline of events
+
+  ```python
+  # Temporal channel boosted — chronological evidence
+  results = mem.search("what changed in June?", channels={"temporal"})
+  ```
+</Accordion>
+
+## The Five Named Retrieval Profiles
+
+Rather than selecting channels manually on every call, you can use a **retrieval profile** (*drishti*, दृष्टि — "way of seeing"). Each profile bundles a channel selection, per-channel weights, result count, and packing policy into a single named preset.
+
+| Profile | Channels active | Best for |
+|---|---|---|
+| `facts` | lexical + semantic + 1-hop entity | Current-state questions: "where do I live?", knowledge updates |
+| `relations` | 2-hop entity + semantic entity linking | Relationship queries: "who works with Rachel?", "who mentors Omar?" |
+| `timeline` | lexical + semantic + temporal (boosted) | When/before/after queries: "what happened in March?", timelines |
+| `deep` | All four + key expansion + observations | Counts, totals, summaries: "how many concerts did I attend?" |
+| `auto` | Chosen per query by a zero-token router | Agents that want Smriti to pick automatically |
+| `precision` | All four (legacy default, no observations) | General-purpose fallback; preserves pre-profile behavior |
+
+<Info>
+  The `auto` profile uses a zero-token heuristic router that checks for aggregation cues (`deep`), date/tense signals (`timeline`), relationship words (`relations`), or two or more known entities (`relations`), and defaults to `facts` otherwise. It costs no extra LLM calls.
+</Info>
+
+## Code Examples
+
+### Basic search
+
+```python
+# Default: all channels, precision profile, k=12
+results = mem.search("where does the user live?", k=10)
+
+for r in results:
+    print(f"[{r.kind}] {r.text}  (score={r.score:.3f})")
+```
+
+### Search with a named profile
+
+```python
+# Use the relations profile for graph-traversal queries
+ctx = mem.context("who mentors Rachel?", profile="relations")
+print(ctx)
+# KNOWN FACTS:
+# - [2026-03-10 | CURRENT] Rachel is mentored by Dr. Mehta in data science.
+# - [2026-04-01 | CURRENT] Rachel joined Dr. Mehta's research group.
+```
+
+### Search with explicit channel selection
+
+```python
+# Temporal channel only — fastest path for when/before/after queries
+results = mem.search("what changed in June?", channels={"temporal"})
+
+# Combine channels explicitly
+results = mem.search("what changed in June?", channels={"temporal", "semantic"})
+```
+
+### Using Sanskrit channel aliases
+
+Smriti accepts the Sanskrit channel aliases anywhere you pass a `channels` set. This is equivalent to the English names.
+
+```python
+# "kala" = temporal, "artha" = semantic
+results = mem.search("what happened before March?", channels={"kala", "artha"})
+
+# "shabda" = lexical, "sambandha" = entity
+results = mem.search("find DB migration steps", channels={"shabda", "sambandha"})
+```
+
+## Custom Retrieval Profiles
+
+Profiles are plain data objects — create one by instantiating `RetrievalProfile` with the fields you want to tune. You can benchmark any custom profile against the built-ins using the shipped `bench/ab.sh` harness.
+
+```python
+from smriti import Smriti, RetrievalProfile
+
+mem = Smriti(path="memory.db")
+
+# A support-agent profile: lexical + semantic, wider result window
+support = RetrievalProfile(
+    name="support",
+    channels={"lexical", "semantic"},
+    k=8,
+    per_channel=16,
+    entity_hops=1,
+    include_observations=False,
+)
+
+results = mem.search("SSL handshake failed on port 443", profile=support)
+```
+
+<CodeGroup>
+```python High-recall profile
+from smriti import RetrievalProfile
+
+# All channels, deep retrieval, with observation digests
+exhaustive = RetrievalProfile(
+    name="exhaustive",
+    channels=None,        # None = all four channels
+    k=40,
+    per_channel=40,
+    use_key_channel=True,
+    include_observations=True,
+    aggregate_pack=True,
+)
+
+ctx = mem.context("summarize everything about the Atlas project",
+                  profile=exhaustive)
+```
+
+```python Precision profile (entity-focused)
+from smriti import RetrievalProfile
+
+# Tight entity graph traversal, 2-hop, no temporal noise
+graph_focus = RetrievalProfile(
+    name="graph_focus",
+    channels={"entity", "semantic"},
+    k=10,
+    entity_hops=2,
+    semantic_entities=True,   # cosine-match query against entity names
+    include_observations=False,
+)
+
+results = mem.search("who is connected to the Bengaluru office?",
+                     profile=graph_focus)
+```
+</CodeGroup>
+
+<Tip>
+  Run `bash bench/ab.sh` to A/B your custom profile against any built-in on your own conversation data. Evidence over intuition — the harness prints the accuracy delta so you know whether a profile change actually helps your workload.
+</Tip>

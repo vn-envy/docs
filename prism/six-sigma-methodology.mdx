@@ -1,0 +1,115 @@
+---
+title: "Six Sigma SPC Applied to LLM Selection Decisions"
+sidebarTitle: "Six Sigma"
+description: "Learn why mean scores fail in production, how Cpk, DPMO, and sigma level quantify LLM consistency, and how the Bayesian MatchScore formula works."
+---
+
+Six Sigma Statistical Process Control (SPC) was developed in the 1980s to solve a specific manufacturing problem: how do you know whether a supplier's parts will meet your specification every time — not just on average? PRISM applies the same mathematical framework to LLM selection. Instead of ranking models by their average benchmark score, PRISM measures **process capability** — the statistical likelihood that a model's output will stay above your quality floor on every production call.
+
+## Why Mean Scores Fail for Production
+
+Imagine you're choosing between two LLM suppliers for a Hindi customer-service bot. You run 5 test calls on each and get these results:
+
+| Trial | Model A score | Model B score |
+|-------|--------------|--------------|
+| 1 | 90 | 97 |
+| 2 | 91 | 62 |
+| 3 | 93 | 98 |
+| 4 | 89 | 55 |
+| 5 | 92 | 93 |
+| **Mean** | **91.0** | **81.0** |
+| **Std Dev** | **1.6** | **20.2** |
+
+Every leaderboard ranks Model B higher on raw benchmark average. But Model B's standard deviation of 20.2 means that roughly 16% of its outputs fall below 61 — a catastrophic failure for a customer-facing bot. Model A's tight σ of 1.6 means nearly every call lands between 88 and 94.
+
+**The mean hides variance. Variance causes production incidents. Cpk measures variance.**
+
+## Cpk: The Process Capability Index
+
+Cpk tells you how many standard deviations sit between your model's mean output quality and your Lower Specification Limit (LSL). The formula for a one-sided quality metric (where "too high quality" is never a defect) is:
+
+```
+Cpk = (μ − LSL) / (3σ)
+```
+
+For the two models above, with an LSL of 70:
+
+```
+Model A:  Cpk = (91.0 − 70) / (3 × 1.6)  = 21.0 / 4.8  = 4.38  ← Excellent
+Model B:  Cpk = (81.0 − 70) / (3 × 20.2) = 11.0 / 60.6 = 0.18  ← Incapable
+```
+
+Model A scores 4.38 — well above the 1.33 production-grade threshold. Model B scores 0.18 — deeply incapable despite its higher mean. PRISM would immediately reject Model B and recommend Model A.
+
+<Tip>
+  Increase your `--lsl` value to raise the bar. If your application genuinely requires 85% minimum quality, set `--lsl 85`. A higher LSL will expose models that can't maintain that bar consistently, even if they look adequate at the default LSL of 70.
+</Tip>
+
+## DPMO: Defects Per Million Opportunities
+
+DPMO normalises defect counts to a per-million scale so you can compare across different sample sizes. In manufacturing, a "defect" is any part that fails to meet specification. In PRISM, a defect is any LLM output whose composite score falls below your LSL, or any hard failure (schema violation, wrong language, timeout, refusal).
+
+```
+DPMO = (defects / opportunities) × 1,000,000
+```
+
+DPMO maps directly to sigma levels via the standard Motorola conversion table:
+
+| Sigma Level | DPMO | Meaning |
+|-------------|------|---------|
+| **6σ** | 3.4 | World-class — near-zero defects |
+| **5σ** | 233 | Excellent — rare failures |
+| **4.5σ** | 1,350 | Very good |
+| **4σ** | 6,210 | Acceptable — the industry baseline |
+| **3.5σ** | 22,750 | Below average |
+| **3σ** | 66,807 | Three Sigma — the old manufacturing floor |
+| **2.5σ** | 158,655 | Poor |
+| **2σ** | 308,538 | Unacceptable |
+| **1σ** | 691,462 | Essentially random |
+
+<Warning>
+  A model at Three Sigma (66,807 DPMO) fails 1 in 15 calls. For a bot handling 10,000 daily messages, that is 667 bad responses per day. PRISM's smoke test flags any model below Three Sigma on basic JSON compliance before it enters candidate evaluation.
+</Warning>
+
+## Sigma Level in Plain English
+
+The sigma level is simply the inverse of DPMO — a higher sigma level means fewer defects. PRISM reports sigma level alongside Cpk because it's more intuitive: "this model operates at 4.2 sigma" communicates quality in a way that "Cpk 1.40" does not, for stakeholders unfamiliar with SPC.
+
+PRISM converts DPMO to sigma level via linear interpolation on the Motorola table. The two numbers are always consistent — a Cpk of 1.33 corresponds to approximately 4σ and 6,210 DPMO.
+
+## Bayesian Posterior: Blending Evidence with Prior Knowledge
+
+Five trials per model is the minimum for a reliable standard deviation estimate (by the Central Limit Theorem), but it is still a small sample. A single unlucky run can depress a good model's score; a single lucky run can inflate a mediocre one. PRISM uses Bayesian inference to stabilise results by blending measured performance with HuggingFace leaderboard priors.
+
+**The prior** comes from `hf_archive.json` — archived HuggingFace Open LLM Leaderboard scores for all 25 candidate models, normalised to the 0–100 scale and indexed by capability pillar.
+
+**The posterior** blends prior and measured likelihood:
+
+```
+posterior_μ = 0.30 × prior_μ  +  0.70 × measured_μ
+```
+
+The 70/30 split means measured results dominate, but the prior prevents a single outlier trial from producing a wildly wrong recommendation. As you run more trials (increasing `--trials`), the measured likelihood gains more influence.
+
+## The MatchScore Formula
+
+MatchScore is the final ranking metric PRISM uses to order candidate models. It explicitly rewards tight sigma, not just high mean:
+
+```
+MatchScore = 0.6 × posterior_μ  +  0.4 × (100 − normalised_σ)
+```
+
+Where `normalised_σ = min(σ / 25 × 100, 100)` scales the standard deviation to a 0–100 penalty. A model with σ = 2.5 incurs a penalty of 10 points; a model with σ = 12.5 incurs a penalty of 50 points.
+
+**Concrete example** — two models with the same posterior_μ of 88:
+
+| Model | posterior_μ | σ | normalised_σ | MatchScore |
+|-------|------------|---|-------------|-----------|
+| Consistent | 88 | 2.0 | 8 | 0.6×88 + 0.4×92 = **89.6** |
+| Variable | 88 | 10.0 | 40 | 0.6×88 + 0.4×60 = **76.8** |
+
+The consistent model ranks 12.8 points higher despite identical mean performance. This is the correct behavior for production supplier selection: you want the model whose outputs you can predict, not the one that occasionally dazzles.
+
+<Info>
+  PRISM intentionally differs from HuggingFace leaderboard rankings. The leaderboard optimises for peak benchmark performance. PRISM optimises for production reliability. The two goals produce different winners.
+</Info>

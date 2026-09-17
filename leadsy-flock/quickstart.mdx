@@ -1,0 +1,72 @@
+---
+title: "Launch Your First Campaign with Leadsy Flock"
+sidebarTitle: "Quickstart"
+description: "Go from a Google listing URL to a publication-ready bilingual ad kit in five steps — no design tools, no agency retainer required."
+---
+
+Launching a campaign with Leadsy Flock takes about as long as ordering your morning coffee. You paste a URL, review a plan, say YES, and the Flock's AI agents handle the rest. By the end of this guide you will have a complete advertising kit with Meta, WhatsApp, and Google creative ready to paste and upload.
+
+<Steps>
+  <Step title="Paste your Google listing URL">
+    Open Leadsy Flock and paste the Google listing URL, Google Maps link, or website address for the shop you own into the input form. Flo, the AI director, reads the listing and asks a few quick questions in plain chat — your business name, city, campaign goal, target audience, budget in rupees, and deadline.
+
+    ```
+    https://share.google/rLF34cfolz9TJA92F
+    ```
+
+    <Info>
+      You must own the listing you paste. Leadsy Flock is built for shop owners, not marketers running campaigns on behalf of others.
+    </Info>
+  </Step>
+
+  <Step title="Review Flo's campaign plan and price">
+    Flo builds a structured campaign brief and hands it to Bri, the strategist. Bri maps the brief to a bundle, selects the right AI agents, and calculates the rupee price — all without making a single expensive model call. You see the full plan before any Veo or Gemini Image credits are spent.
+
+    The plan shows you:
+    - Recommended bundle (Find, Launch, or Full)
+    - Which agents will run and what each produces
+    - Total campaign price in rupees
+    - Creative formats included in the kit
+  </Step>
+
+  <Step title="Approve with YES">
+    YES is the expensive door. Nothing runs until you approve. Once you confirm, Leadsy Flock sends a single Pub/Sub message that fans the pipeline out to `flock-worker`. The Veo 3.1 film generation, Gemini Image stills, and Lyria audio sting all begin only after your explicit approval.
+
+    <Warning>
+      Approving a campaign starts billable model calls. Review the plan and price carefully before clicking YES. You can view real-time cost burn at `/dash` once the pipeline starts.
+    </Warning>
+  </Step>
+
+  <Step title="Watch the pipeline run">
+    The run room at `/r/{campaign_id}` streams live progress as each agent completes its step:
+
+    | Step | Agent | What happens |
+    |------|-------|--------------|
+    | Scout | Scout | Reads your listing, Maps data, site, and photos to build a BrandSpec |
+    | Inka | Inka | Generates bilingual copy, Veo 3.1 films, stills, and a Lyria audio sting |
+    | Harvest | Inka sidecar | Polls Veo until both 8-second clips are ready |
+    | Creative Gate | Ledge | Three-layer safety check on every piece of copy and creative |
+    | Stella | Stella | Builds the consent-first landing page at `/l/{campaign_id}` |
+    | Ad Kit | — | Assembles all variants into your paste kit at `/k/{campaign_id}` |
+
+    Each completed step writes a Firestore receipt. If a step fails, the pipeline stops cleanly and you can retry without re-running completed steps.
+  </Step>
+
+  <Step title="Open your paste kit">
+    Your finished kit lives at `/k/{campaign_id}`. It contains ready-to-upload creative for every channel, with copy in English and your local Indic language, UTM-tracked links, and clear paste instructions for each platform.
+
+    **What's in the kit:**
+    - `meta_feed` — 4:5 still and 8-second film for Meta Feed
+    - `meta_square` — 1:1 creative for Meta Carousel
+    - `meta_reel` — 9:16 film for Meta and Instagram Reels
+    - `whatsapp_status` — 9:16 creative for WhatsApp Status (organic)
+    - `google_display` — 1.91:1 image for Google Responsive Display Ads
+    - `google_rsa` — Headline and description text for Google Search
+
+    Download the creative, open the platform of your choice, and upload it yourself. The kit is a paste guide — Leadsy Flock never posts anything on your behalf.
+  </Step>
+</Steps>
+
+<Note>
+  Track your campaign's real-time token counts, model calls, and cost in USD and INR at `/dash`. The cost observatory shows Vertex list-price burn so you always know what the pipeline spent — the Glen's Bakehouse demo ran at $6.41 / ₹545.
+</Note>

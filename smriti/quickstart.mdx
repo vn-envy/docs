@@ -1,0 +1,188 @@
+---
+title: "Get Started with Smriti in Under 5 Minutes"
+sidebarTitle: "Quickstart"
+description: "Install Smriti, add your first conversation to memory, and retrieve context — all running locally with no API keys or external services required."
+---
+
+Smriti's core loop is three lines: create a memory instance, call `mem.add()` with a conversation, and call `mem.context()` to retrieve what's relevant. This guide walks you through each step so your agent has persistent memory before your coffee gets cold.
+
+<Steps>
+
+  <Step title="Install Smriti">
+    Install the `smriti-agents` package from PyPI. The import name is `smriti`.
+
+    <CodeGroup>
+      ```bash pip
+      pip install smriti-agents
+      ```
+
+      ```bash uv
+      uv add smriti-agents
+      ```
+    </CodeGroup>
+
+    Smriti requires Python 3.9 or later. Its only runtime dependency is `numpy` — everything else uses the standard library.
+  </Step>
+
+  <Step title="Choose an embedder">
+    Smriti needs an embedder to power its semantic retrieval channel. Pick the option that matches your environment:
+
+    <Tabs>
+      <Tab title="HashEmbedder (offline)">
+        `HashEmbedder` uses deterministic character n-gram hashing. It requires no model download, no network, and no API keys. It's the right choice for local testing, CI pipelines, and any situation where you want zero external dependencies.
+
+        ```python
+        from smriti import HashEmbedder
+
+        embedder = HashEmbedder()
+        ```
+
+        <Info>
+          HashEmbedder is not semantically aware — it won't match "Bengaluru" to "the city they moved to." Use it to test your integration or in strict offline environments, then swap in OllamaEmbedder for better semantic recall.
+        </Info>
+      </Tab>
+      <Tab title="OllamaEmbedder (local LLM)">
+        `OllamaEmbedder` sends texts to a locally running [Ollama](https://ollama.com) instance. It produces real semantic embeddings, which dramatically improves retrieval quality for paraphrases and conceptual queries.
+
+        ```bash
+        # Pull a strong embedding model first
+        ollama pull nomic-embed-text
+        ```
+
+        ```python
+        from smriti import OllamaEmbedder
+
+        embedder = OllamaEmbedder("nomic-embed-text")
+        ```
+      </Tab>
+      <Tab title="OpenAICompatEmbedder (any endpoint)">
+        `OpenAICompatEmbedder` works with any `/v1/embeddings`-compatible endpoint — OpenAI, vLLM, LM Studio, Groq, DeepSeek, or OpenRouter.
+
+        ```python
+        from smriti import OpenAICompatEmbedder
+
+        embedder = OpenAICompatEmbedder(
+            model="text-embedding-3-small",
+            base_url="https://api.openai.com/v1",
+            api_key="sk-...",
+        )
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Create a Smriti instance">
+    Instantiate `Smriti` with a database path and your chosen embedder. In **lite mode** (the default when no LLM is configured), Smriti stores raw conversation episodes and retrieves them via all four channels with no write-time LLM calls.
+
+    ```python
+    from smriti import Smriti, HashEmbedder
+
+    mem = Smriti(
+        path="memory.db",
+        embedder=HashEmbedder(),
+    )
+    ```
+
+    The `memory.db` file is created automatically on the first write. Pass `path=":memory:"` to use an in-process SQLite database that disappears when your script exits — useful for testing.
+  </Step>
+
+  <Step title="Add a conversation and search memory">
+    Call `mem.add()` with a list of `{role, content}` message dicts — the same format used by OpenAI and most LLM SDKs. Then call `mem.context()` to get a packed, answer-ready context string for your agent.
+
+    ```python
+    from smriti import Smriti, HashEmbedder
+
+    mem = Smriti(
+        path="memory.db",
+        embedder=HashEmbedder(),
+    )
+
+    # Add a conversation
+    result = mem.add(
+        messages=[
+            {"role": "user", "content": "I moved to Bengaluru last month."},
+            {"role": "assistant", "content": "Got it! I'll remember that."},
+        ]
+    )
+    print(result)  # {"session_id": "...", "episodes": 2, "facts": 0}
+
+    # Search memory
+    ctx = mem.context("Where does the user live?")
+    print(ctx)
+    ```
+
+    The `result` dict contains the `session_id`, the number of episodes stored, and (in full mode) the number of structured facts extracted. The `ctx` string is a formatted block you can prepend directly to your agent's system prompt.
+  </Step>
+
+</Steps>
+
+## Add full mode for better fact extraction
+
+Lite mode is powerful, but it stores raw transcripts. **Full mode** adds LLM-based fact extraction so Smriti understands *what changed* — and can answer "where does the user live now?" with a structured, supersession-aware fact rather than just a relevant episode.
+
+<Note>
+  Full mode makes one LLM call per `mem.add()` session. It works with any OpenAI-compatible endpoint. Run Ollama locally for a fully offline, zero-cost full-mode setup.
+</Note>
+
+```python
+from smriti import Smriti, LLM, OllamaEmbedder
+
+mem = Smriti(
+    path="memory.db",
+    embedder=OllamaEmbedder("nomic-embed-text"),
+    llm=LLM("qwen3:14b", provider="ollama"),
+    mode="full",
+)
+
+# First session — establishes a fact
+mem.add(
+    messages=[{"role": "user", "content": "I live in Hyderabad."}],
+    timestamp="2026-01-15T10:00:00Z",
+)
+
+# Second session — supersedes the old fact with a new one
+mem.add(
+    messages=[{"role": "user", "content": "I moved to Bengaluru on June 1st."}],
+    timestamp="2026-06-02T10:00:00Z",
+)
+
+# Context reflects the current state with full temporal history
+print(mem.context("where do I live?"))
+# KNOWN FACTS:
+# - [2026-01-15 | SUPERSEDED on 2026-06-01] The user lives in Hyderabad.
+# - [2026-06-01 | CURRENT] The user lives in Bengaluru.
+```
+
+The superseded fact is never deleted — it stays in the store with its validity window, so you can always ask what was true at a given point in time.
+
+## Use retrieval profiles
+
+For more control over how Smriti searches, pass a `profile` argument to `mem.search()` or `mem.context()`:
+
+```python
+# Get precise current-state facts
+ctx = mem.context("where does the user live?", profile="facts")
+
+# Explore entity relationships
+results = mem.search("who works with Rachel?", profile="relations")
+
+# Retrieve chronologically ordered evidence
+results = mem.search("what happened in March?", profile="timeline")
+
+# Deep recall for aggregation questions
+ctx = mem.context("how many concerts did I attend?", profile="deep")
+
+# Let Smriti's router pick the best profile automatically
+ctx = mem.context("summarize what I know about this user", profile="auto")
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/smriti/installation">
+    Configure environment variables and explore all supported LLM providers.
+  </Card>
+  <Card title="MCP Server" icon="plug" href="/smriti/mcp-server">
+    Drop Smriti memory into Claude Code or Cursor with one command.
+  </Card>
+</CardGroup>

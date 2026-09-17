@@ -1,0 +1,95 @@
+---
+title: "How Rolecrft Scores and Rewrites Your Resume"
+sidebarTitle: "Resume Analysis"
+description: "Understand Rolecrft's 8-category rubric, dual ATS/HM scores, AI resume change tags, one-click ATS keyword injection, and the Action Plan score simulator."
+---
+
+Rolecrft's resume analysis does two things that most tools don't: it scores your resume against the specific job description you submitted (not generic criteria), and it edits your existing bullets rather than rewriting them from scratch. Every change is tagged so you know exactly what the AI touched, what it preserved, and why — giving you full control over the final document.
+
+## The 8-Category Scoring Rubric
+
+Your resume is scored against a 100-point rubric calibrated to the specific job description. The rubric runs twice — once through an ATS lens (keyword and structure matching) and once through a hiring-manager lens (narrative quality and fit). Both scores appear on your Analysis tab.
+
+| Category | Max Points | What It Measures |
+|----------|-----------|-----------------|
+| **Must-Have Coverage** | 30 | Do your stated skills and experience cover the explicit requirements listed as required or must-have in the JD? |
+| **Impact Metrics** | 15 | Does your resume quantify achievements with numbers, percentages, or dollar values? |
+| **Seniority & Scope** | 10 | Does the scale of your past work match the seniority level and team/budget scope of the target role? |
+| **Responsibilities Alignment** | 12 | Do your job responsibilities map to the day-to-day duties described in the JD? |
+| **ATS Structure** | 10 | Is your resume structured to pass automated keyword scans — clean sections, standard headings, no tables or images? |
+| **Domain & Tooling** | 10 | Do you demonstrate familiarity with the tools, platforms, and domain conventions specific to this role? |
+| **Tonality Fit** | 8 | Does your language register match the company's communication style (e.g., startup-casual vs. enterprise-formal)? |
+| **Differentiators** | 5 | Do you have anything genuinely unusual — patents, publications, relevant side projects, elite awards? |
+
+### Status Thresholds
+
+Your combined score produces one of three statuses:
+
+| Status | Threshold | Meaning |
+|--------|-----------|---------|
+| **Cleared** ✅ | ≥ 75 points | Your resume is competitive for this role. Proceed to interviews with confidence. |
+| **Conditional** ⚠️ | 55–74 points | Your resume is viable but has specific gaps. Complete the Action Plan before applying. |
+| **Grounded** 🔴 | < 55 points | Significant qualification or presentation gaps exist. The Action Plan is essential before applying. |
+
+## The Dual ATS/Hiring-Manager Score
+
+Rolecrft generates two separate scores because ATS systems and human reviewers evaluate resumes differently:
+
+- **ATS Score**: Weighted toward keyword presence, structural clarity, and section labelling. A resume optimised only for ATS can read mechanically to a human.
+- **HM Score**: Weighted toward narrative coherence, impact metrics, and authentic achievement framing. A resume great for humans may lack the explicit keywords an ATS needs.
+
+The goal is to optimise both without sacrificing either. Rolecrft's AI transformation and ATS keyword scan work together toward this balance.
+
+## How the AI Transformation Works
+
+Rolecrft edits your resume rather than rewriting it. Every bullet in your original resume receives one of four change tags. You can accept, reject, or manually edit any tagged change inline before exporting.
+
+<AccordionGroup>
+  <Accordion title="[KEPT] — Preserved verbatim">
+    The bullet is strong as written — it already demonstrates quantified impact, uses a strong action verb, and aligns with the JD requirements. Rolecrft preserves it exactly, including your phrasing and metrics.
+  </Accordion>
+
+  <Accordion title="[IMPROVED] — Strengthened with stronger verb or metric">
+    The bullet's core claim is valid but its presentation is weak — perhaps it starts with a passive verb, omits a metric, or buries the impact. Rolecrft rewrites the surface without changing the underlying claim.
+
+    **Before**: *Helped with migration of legacy services to AWS*
+    **After**: *Led migration of 12 legacy services to AWS, reducing infrastructure costs by 34%*
+  </Accordion>
+
+  <Accordion title="[ADDED] — New bullet (maximum 1 per role)">
+    The JD explicitly requires a skill or responsibility that your resume doesn't mention anywhere, but your career history strongly implies you have it. Rolecrft adds at most one new bullet per job role. New bullets are clearly labelled so you can verify their accuracy before submission.
+  </Accordion>
+
+  <Accordion title="[SUGGESTED] — Inferred metric for your confirmation">
+    Rolecrft has inferred a plausible metric from context but cannot verify it. These appear as inline editable tags — click the tag to type in your real number or dismiss it. Never submit a [SUGGESTED] tag without replacing it with your actual data.
+  </Accordion>
+</AccordionGroup>
+
+After transformation, Rolecrft shows a **change log** summarising how many bullets were kept, improved, added, and suggested, along with a **preservation percentage** — the share of your original content left intact. A high preservation percentage means Rolecrft agreed with most of your existing bullets.
+
+## ATS Keyword Scan
+
+The ATS keyword scan runs entirely client-side with zero additional LLM cost. Rolecrft extracts every skill, tool, and technology mentioned in the job description and checks each one against your transformed resume using alias matching.
+
+**Alias matching examples:**
+- `k8s` = `kubernetes`
+- `js` = `javascript`
+- `ml` = `machine learning`
+- `ci/cd` = `continuous integration` / `continuous deployment`
+
+For each missing keyword, Rolecrft shows:
+- The exact JD term that triggered the gap
+- Whether it appears in the Must-Have or Nice-to-Have section
+- A one-click **Inject** button that adds the keyword naturally into the most relevant existing bullet
+
+When you inject a keyword, Rolecrft recalculates your ATS score live so you can see the impact of each addition before exporting.
+
+## Score Simulator in the Action Plan Tab
+
+The Action Plan tab gives you a prioritised list of improvements tagged as `quick_win`, `medium_term`, or `strategic`. Every action includes an estimated score impact, time commitment, and cost.
+
+Check the checkbox next to any action and the **projected score** updates in real time — showing your estimated new ATS and HM scores if you complete that action. Use this to decide which improvements deliver the best return for your available time before you apply.
+
+<Tip>
+  Start with **quick_win** actions first — they typically require one to two hours and can move your score by 5–15 points. **strategic** actions (courses, certifications, side projects) are worth pursuing but shouldn't delay your application.
+</Tip>

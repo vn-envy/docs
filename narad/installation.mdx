@@ -1,0 +1,189 @@
+---
+title: "Install Narad on macOS and Linux Completely"
+sidebarTitle: "Installation"
+description: "Full Narad setup for macOS and Linux: prerequisites, platform steps, voice extras, environment variables, hardware tier detection, and security defaults."
+---
+
+Narad runs on macOS (Apple Silicon and Intel) and Linux. Installation takes about five minutes: you install the Python backend, build the React frontend once, and optionally add voice packages. This page covers everything beyond the basic quickstart — platform-specific steps, voice extras, environment variables, hardware tier detection, and the security defaults you should know before exposing the server beyond loopback.
+
+## Prerequisites
+
+Before you begin, confirm you have the following installed:
+
+| Tool | Minimum version | Check |
+|------|-----------------|-------|
+| Python | 3.11 | `python3 --version` |
+| Node.js | 20 | `node --version` |
+| npm | 10 | `npm --version` |
+| Git | Any recent | `git --version` |
+
+<Note>
+  The README badges show Python ≥ 3.11 and Node ≥ 20. Earlier versions may appear to work but are not tested and can produce silent failures in the async runtime.
+</Note>
+
+## Platform Installation
+
+<Tabs>
+  <Tab title="macOS">
+    **No-terminal option:** Double-click **`Start Narad.command`** in the cloned repo folder. The first run installs everything automatically and opens `http://127.0.0.1:8000` in your browser. Close the Terminal window to stop the server. Use this path if you want to skip the steps below.
+
+    **Terminal installation:**
+
+    ```bash
+    # 1. Clone and create virtual environment
+    git clone https://github.com/vn-envy/Narad.git && cd Narad
+    python3 -m venv .venv && source .venv/bin/activate
+
+    # 2. Install backend
+    pip install -e .
+
+    # 3. Build the frontend (once)
+    cd phase-4/frontend && npm ci && npm run build && cd ../..
+
+    # 4. Start the server
+    narad-server
+    ```
+
+    Open `http://127.0.0.1:8000` in your browser.
+
+    **Voice support on macOS:**
+
+    Install the system audio libraries before adding the voice extras:
+
+    ```bash
+    brew install espeak-ng ffmpeg
+    pip install -e ".[voice]"      # Kokoro-82M TTS (CPU) + faster-Whisper STT
+    pip install -e ".[voice-pro]"  # Adds VoxCPM (Apple Silicon — Hindi, voice cloning)
+    ```
+
+    `voice-pro` models download on first use (approximately 800 MB, one time). The engine resolution is automatic: VoxCPM → Kokoro → Sarvam cloud (only if `SARVAM_API_KEY` is set).
+  </Tab>
+
+  <Tab title="Linux">
+    **Terminal installation:**
+
+    ```bash
+    # 1. Clone and create virtual environment
+    git clone https://github.com/vn-envy/Narad.git && cd Narad
+    python3 -m venv .venv && source .venv/bin/activate
+
+    # 2. Install backend
+    pip install -e .
+
+    # 3. Build the frontend (once)
+    cd phase-4/frontend && npm ci && npm run build && cd ../..
+
+    # 4. Start the server
+    narad-server
+    ```
+
+    Open `http://127.0.0.1:8000` in your browser.
+
+    **Voice support on Linux:**
+
+    Install the system audio libraries before adding the voice extras:
+
+    ```bash
+    sudo apt install espeak-ng ffmpeg   # Debian/Ubuntu
+    pip install -e ".[voice]"           # Kokoro-82M TTS (CPU) + faster-Whisper STT
+    pip install -e ".[voice-pro]"       # Adds VoxCPM (GPU — Hindi, voice cloning)
+    ```
+
+    API keys are stored using **libsecret** (the Linux Secret Service). Install the `python-secretstorage` package if it is not already available on your distribution.
+
+    ```bash
+    pip install secretstorage
+    ```
+
+    `voice-pro` on Linux requires a CUDA-capable GPU for VoxCPM. Without a GPU, Kokoro (CPU) is used automatically.
+  </Tab>
+</Tabs>
+
+## Voice Support Summary
+
+| Extra | TTS engine | STT engine | Hardware | Use case |
+|-------|-----------|-----------|----------|----------|
+| `[voice]` | Kokoro-82M | faster-Whisper | CPU | Standard hands-free mode |
+| `[voice-pro]` | VoxCPM | faster-Whisper | GPU / Apple Silicon | Hindi, higher quality, voice cloning |
+
+Click **voice** in the chat header to enter hands-free mode. Speak naturally — you can talk over Narad's response to interrupt. Toggle हिन्दी for Hindi output. Check `GET /voice/status` to see which engine is active.
+
+**Voice tuning environment variables:**
+
+| Variable | Values | Default | Effect |
+|----------|--------|---------|--------|
+| `NARAD_WHISPER_MODEL` | `tiny`, `base`, `small`, `medium` | `base` | STT accuracy vs. speed |
+| `NARAD_TTS_ENGINE` | `auto`, `kokoro`, `voxcpm`, `sarvam` | `auto` | Force a specific TTS engine |
+| `NARAD_VOXCPM_MODEL` | model path or name | auto | Override the VoxCPM model |
+| `NARAD_VOICE_REF_DIR` | directory path | — | Per-avatar `<avatar>.wav` + `.txt` for voice cloning |
+
+## Environment Variables for API Keys
+
+Narad reads API keys from your OS keychain first (set via the Kunji UI) and falls back to environment variables. Export these before starting the server if you prefer the shell approach:
+
+| Variable | Provider | Used by |
+|----------|----------|---------|
+| `DEEPSEEK_API_KEY` | DeepSeek | Narad router, all Avatāras, Tapas judge |
+| `GEMINI_API_KEY` | Google Gemini | Smriti embeddings, image and video generation |
+| `TAVILY_API_KEY` | Tavily | Matsya web search |
+| `SARVAM_API_KEY` | Sarvam | Cloud TTS fallback (voice only, optional) |
+
+```bash
+export DEEPSEEK_API_KEY=dsk-...
+export GEMINI_API_KEY=AIza...
+export TAVILY_API_KEY=tvly-...
+narad-server
+```
+
+The server starts with zero keys and shows which capabilities are live in the UI. You do not need any key to start chatting on the local free tier.
+
+## Hardware Tier Detection
+
+At startup, Narad auto-detects your hardware and selects the best free model. Call `GET /tiers` to see the full detection result and the recommended model:
+
+```bash
+curl http://127.0.0.1:8000/tiers
+```
+
+| Tier | Name | Trigger | Model |
+|------|------|---------|-------|
+| T0 | Kinara | < 8 GB RAM | Gemma 4 E2B QAT |
+| T1 | Sthanik | Standard laptop | Gemma 4 12B QAT Q4 |
+| T2 | Kunji | Cloud key present | Any BYO cloud model |
+| T3 | Sadasya | Claude subscription | Claude Pro/Max credits |
+| T4 | Sangam | Mixed keys | Hybrid local + cloud |
+
+## Security Defaults
+
+Narad ships with conservative security defaults. Understand these before changing them:
+
+- **Loopback bind** — the server listens on `127.0.0.1` only. Nothing is reachable from other devices unless you pass `--host 0.0.0.0`.
+- **Bearer token** — a token is auto-generated at `~/.narad/config/api_token` (permissions: `chmod 600`). `NARAD_AUTH=local` (default) trusts loopback connections without a token. `NARAD_AUTH=strict` requires the token on every request. `NARAD_AUTH=off` is for automated tests only.
+- **Dharma gates** — code execution, email sending, and browser form submission are policy-gated and fail-closed. Every verdict is recorded in the Karma audit log.
+
+<Warning>
+  Do not expose Narad to the public internet without setting `NARAD_AUTH=strict`. The default `local` mode trusts all loopback connections without a bearer token. If you must bind to `0.0.0.0` — for example, to access Narad from your phone over Tailscale — always pair it with `NARAD_AUTH=strict`.
+</Warning>
+
+## Development Mode
+
+For frontend development, run the Vite dev server alongside `narad-server` for live reload on port 5173:
+
+```bash
+narad-server --reload &                          # backend with auto-restart
+cd phase-4/frontend && npm run dev               # frontend on :5173
+```
+
+The `--reload` flag restarts the Python server when source files change. The Vite dev server proxies API requests to port 8000 automatically.
+
+## Updating Narad
+
+To update to the latest version, pull the latest commits, reinstall the backend, and rebuild the frontend:
+
+```bash
+git pull
+source .venv/bin/activate
+pip install -e .
+cd phase-4/frontend && npm ci && npm run build && cd ../..
+narad-server
+```

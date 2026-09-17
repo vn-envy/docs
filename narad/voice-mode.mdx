@@ -1,0 +1,127 @@
+---
+title: "Talk to Narad: Enable Fully Local Voice Mode Today"
+sidebarTitle: "Voice Mode"
+description: "Enable fully local speech in Narad using Kokoro-82M TTS and faster-whisper STT, with an optional Pro tier for GPU-accelerated Hindi voice cloning."
+---
+
+Narad's voice mode keeps your audio entirely on-device — no cloud transcription, no third-party TTS by default. The standard tier runs Kokoro-82M for text-to-speech and faster-whisper for speech-to-text, both CPU-compatible. If you have a GPU or Apple Silicon, the Pro tier adds VoxCPM for higher-quality synthesis and zero-shot voice cloning.
+
+## Enable Voice Mode
+
+<Steps>
+  <Step title="Install the voice extras">
+    Choose the tier that matches your hardware. The standard install runs on any CPU; the Pro install requires a GPU or Apple Silicon (MPS).
+
+    <CodeGroup>
+      ```bash Standard (CPU)
+      pip install -e ".[voice]"
+      ```
+
+      ```bash Pro (GPU / Apple Silicon)
+      pip install -e ".[voice-pro]"
+      ```
+    </CodeGroup>
+
+    The `voice` extra pulls in `kokoro>=0.9.0` and `faster-whisper>=1.0.0`. The `voice-pro` extra adds `voxcpm>=0.1.0` on top.
+  </Step>
+
+  <Step title="Start narad-server">
+    Launch the server as usual. Voice routes are loaded automatically when the packages are present — no extra flag is needed.
+
+    ```bash
+    narad-server
+    ```
+
+    If a voice package fails to import, the server logs a warning and continues without that capability. Everything else still works.
+  </Step>
+
+  <Step title="Click the microphone in the UI">
+    Open the Narad web interface at `http://127.0.0.1:5173`. A microphone button appears in the chat toolbar. Click it to start recording. When you release, faster-whisper transcribes your audio locally and sends the text as your message. Narad's response is then synthesised through the best available TTS engine and played back in your browser.
+
+    <Note>
+      If faster-whisper is not installed, the frontend falls back to the browser's built-in Web Speech API for transcription. TTS playback still uses whichever local engine is available.
+    </Note>
+  </Step>
+
+  <Step title="Verify engine status via the API">
+    Confirm which TTS and STT engines are active by querying the voice status endpoint.
+
+    ```bash
+    curl http://127.0.0.1:8000/voice/status
+    ```
+
+    A successful response shows the active TTS engine, the full tier list, and the STT model in use:
+
+    ```json
+    {
+      "device": "mps",
+      "tts": {
+        "tiers": ["voxcpm", "kokoro"],
+        "active": "voxcpm"
+      },
+      "stt": {
+        "engine": "faster-whisper",
+        "available": true,
+        "model": "small"
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Model Resolution Chain
+
+Narad resolves TTS at startup by probing what is installed and what hardware is available, then picks the best option. You can override automatic selection with `NARAD_TTS_ENGINE`.
+
+<Tabs>
+  <Tab title="Auto (default)">
+    When `NARAD_TTS_ENGINE=auto`, Narad works through this priority list and uses the first engine that is both installed and supported by your hardware:
+
+    ```
+    VoxCPM  ──► Kokoro-82M  ──► Sarvam Cloud
+    (GPU/MPS)   (any CPU)       (SARVAM_API_KEY required)
+    ```
+
+    Sarvam is only ever reached if `SARVAM_API_KEY` is set in your environment. Without that key, Narad never makes a network call for TTS.
+  </Tab>
+  <Tab title="Forced engine">
+    Set `NARAD_TTS_ENGINE` to any of the values below to skip the automatic probe:
+
+    | Value | Engine used |
+    |-------|-------------|
+    | `voxcpm` | VoxCPM only (error if not installed or no GPU) |
+    | `kokoro` | Kokoro-82M only |
+    | `sarvam` | Sarvam Cloud only (requires `SARVAM_API_KEY`) |
+    | `auto` | Default — best available |
+  </Tab>
+</Tabs>
+
+## Voice Configuration Reference
+
+Set these environment variables before starting `narad-server` to customise voice behaviour. You can place them in a `.env` file at the project root.
+
+| Variable | Values | Default | Purpose |
+|----------|--------|---------|---------|
+| `NARAD_TTS_ENGINE` | `auto` / `kokoro` / `voxcpm` / `sarvam` | `auto` | Force a specific TTS engine |
+| `NARAD_WHISPER_MODEL` | `tiny` / `base` / `small` / `medium` | `small` | Whisper model size for STT |
+| `NARAD_VOXCPM_MODEL` | any HuggingFace model ID | `openbmb/VoxCPM-0.5B` | VoxCPM checkpoint to load |
+| `NARAD_VOICE_REF_DIR` | directory path | _(unset)_ | Directory of per-avatar reference audio for zero-shot cloning |
+| `SARVAM_API_KEY` | API key string | _(unset)_ | Enables Sarvam cloud TTS as the final fallback |
+
+<Tip>
+  **Hindi support requires VoxCPM or Sarvam.** Kokoro-82M includes Hindi voices (`hm_omega`, `hm_psi`) for each avatar, but VoxCPM on GPU or Apple Silicon produces noticeably more natural Hindi output and supports zero-shot cloning from your own reference audio. To enable Hindi output in the UI, toggle the **हि** switch in the voice toolbar — this sets the synthesis language to `hi` for that session.
+</Tip>
+
+## Per-Avatar Voices
+
+Each avatar has a dedicated voice in both English and Hindi. Kokoro uses fixed voice IDs; VoxCPM can optionally clone a reference audio file placed in `NARAD_VOICE_REF_DIR`.
+
+| Avatar | English voice | Hindi voice |
+|--------|--------------|-------------|
+| Krishna | `am_michael` | `hm_omega` |
+| Rama | `am_adam` | `hm_psi` |
+| Parashurama | `am_onyx` | `hm_omega` |
+| Hanuman | `am_puck` | `hm_psi` |
+| Narad | `am_liam` | `hm_omega` |
+
+To use zero-shot cloning with VoxCPM, place `<avatar>.wav` and `<avatar>.txt` (the transcript of that audio) in the directory you set for `NARAD_VOICE_REF_DIR`. If those files are absent, VoxCPM falls back to its default voice.

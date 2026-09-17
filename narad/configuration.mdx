@@ -1,0 +1,142 @@
+---
+title: "Configure Narad: Models, Auth, Rate Limits, and CORS"
+sidebarTitle: "Configuration"
+description: "Set environment variables to control Narad's auth mode, rate limiting, CORS, per-avatar model overrides, voice engines, and learning thresholds."
+---
+
+Narad is configured entirely through environment variables — there is no separate config file to maintain. Place your variables in a `.env` file at the project root and they are loaded automatically when `narad-server` starts. Any value you set overrides the default, and all variables are optional: the server runs without any of them set.
+
+## Full Environment Variable Reference
+
+<Tabs>
+  <Tab title="Auth & Network">
+    | Variable | Values | Default | Description |
+    |----------|--------|---------|-------------|
+    | `NARAD_AUTH` | `local` / `strict` / `off` | `local` | Authentication mode (see below) |
+    | `NARAD_ALLOWED_ORIGINS` | comma-separated URLs | `http://localhost:5173,http://127.0.0.1:5173` | CORS allowed origins |
+    | `NARAD_RATE_LIMIT` | integer | `10` | Requests per minute per `user_id` |
+  </Tab>
+  <Tab title="Voice">
+    | Variable | Values | Default | Description |
+    |----------|--------|---------|-------------|
+    | `NARAD_TTS_ENGINE` | `auto` / `kokoro` / `voxcpm` / `sarvam` | `auto` | Force a specific TTS engine |
+    | `NARAD_WHISPER_MODEL` | `tiny` / `base` / `small` / `medium` | `small` | faster-whisper model size for STT |
+    | `NARAD_VOXCPM_MODEL` | HuggingFace model ID | `openbmb/VoxCPM-0.5B` | VoxCPM checkpoint |
+    | `NARAD_VOICE_REF_DIR` | directory path | _(unset)_ | Reference audio for zero-shot cloning |
+    | `SARVAM_API_KEY` | API key | _(unset)_ | Enables Sarvam cloud TTS fallback |
+  </Tab>
+  <Tab title="Learning & Quality">
+    | Variable | Values | Default | Description |
+    |----------|--------|---------|-------------|
+    | `TAPAS_JUDGE_MODEL` | model ID string | _(uses default Tapas model)_ | Override the model used for sutra scoring |
+    | `TAPAS_PROMOTE_THRESHOLD` | float 0–1 | `0.80` | Minimum score for a sutra to reach the pending queue |
+    | `ANDON_MIN_LENGTH` | integer (chars) | `80` | Minimum response length before an Andon fires |
+    | `ANDON_LATENCY_MS` | integer (ms) | `120000` | Latency threshold that triggers an Andon timeout alert |
+  </Tab>
+  <Tab title="Storage & Misc">
+    | Variable | Values | Default | Description |
+    |----------|--------|---------|-------------|
+    | `NARAD_HOME` | directory path | `~/.narad` | Root directory for all Narad data |
+    | `NARAD_USE_DOCLING` | `1` / _(unset)_ | _(unset)_ | Opt into IBM Docling for richer document extraction |
+    | `NARAD_SCHEDULER` | `1` / `0` | `1` | Set to `0` to disable the Kala background scheduler |
+    | `NARAD_SUPERVISOR_RECALL_BUDGET` | integer (tokens) | `384` | Token budget for supervisor-level memory recall per turn |
+  </Tab>
+</Tabs>
+
+---
+
+## Auth Modes
+
+Narad supports three authentication modes. Choose based on who can reach your server.
+
+### `local` (default)
+
+Requests that arrive from `127.0.0.1` or `::1` pass without a token. Requests from any other IP require an `Authorization: Bearer <token>` header. The token is generated automatically on first startup and stored at `~/.narad/config/api_token` (mode `600`).
+
+This mode is the right choice for personal use on your own machine. Because the default bind address is `127.0.0.1`, remote access requires both rebinding the server and knowing the token — two independent barriers.
+
+```bash
+# Read your auto-generated token
+cat ~/.narad/config/api_token
+```
+
+### `strict`
+
+Every request — regardless of source IP — must supply the bearer token. Use this mode when you bind Narad to `0.0.0.0` or expose it through a reverse proxy.
+
+<Warning>
+  If you bind `narad-server` to `0.0.0.0` to make it reachable from your local network or the internet, always set `NARAD_AUTH=strict`. In `local` mode, any client on the same network that can reach port 8000 gets unrestricted access to your workspace, memory, and API keys stored in the keychain.
+</Warning>
+
+### `off`
+
+No authentication check is performed. Use this only in isolated test environments or trusted internal networks where unauthenticated access is acceptable.
+
+```bash
+# Example: disable auth for automated integration tests
+NARAD_AUTH=off narad-server
+```
+
+---
+
+## Per-Avatar Model Overrides
+
+By default, all avatars use the model selected by Narad's tier engine. To run a specific avatar on a different model, set the corresponding environment variable before starting the server.
+
+```bash
+# .env example — mix models by avatar capability
+MATSYA_MODEL=gemini-2.0-flash-exp
+RAMA_MODEL=gemini-2.5-pro
+KRISHNA_MODEL=gemini-2.5-flash
+PARASHURAMA_MODEL=gemini-2.5-pro
+```
+
+| Variable | Avatar | Role |
+|----------|--------|------|
+| `MATSYA_MODEL` | Matsya | Web search and research |
+| `RAMA_MODEL` | Rama | Project planning and orchestration |
+| `KRISHNA_MODEL` | Krishna | Teaching and knowledge synthesis |
+| `PARASHURAMA_MODEL` | Parashurama | Diagnosis, debugging, and quality analysis |
+
+<Tip>
+  Assign a faster, cheaper model to Matsya for high-volume searches, and reserve a more capable model for Parashurama's diagnostic work. This keeps costs predictable without sacrificing analysis quality. Check `GET /tiers` to see which models your hardware tier recommends.
+</Tip>
+
+---
+
+## Rate Limiting
+
+Narad uses a token bucket algorithm to rate-limit requests per `user_id`. The default allows 10 requests per minute. When a user exceeds the limit, the server returns `HTTP 429` with a `Retry-After: 60` header.
+
+```bash
+# Allow 30 requests per minute per user
+NARAD_RATE_LIMIT=30
+```
+
+The rate limit applies to all `/chat` requests. Static asset serving, the `/health` endpoint, and media files are never rate-limited.
+
+---
+
+## CORS Configuration
+
+Narad pins allowed origins to the Vite dev server by default. If you serve the frontend from a different origin — for example, a custom domain or a different port — add it to `NARAD_ALLOWED_ORIGINS`.
+
+```bash
+# Allow multiple origins
+NARAD_ALLOWED_ORIGINS=https://narad.example.com,http://localhost:3000
+```
+
+The value is a comma-separated list of full origin strings (scheme + host + port). Wildcard origins (`*`) are not supported; list each origin explicitly.
+
+---
+
+## Document Extraction
+
+To enable IBM Docling for richer extraction from PDFs, Word documents, and structured files, set `NARAD_USE_DOCLING=1` and ensure the `documents` extra is installed.
+
+```bash
+pip install -e ".[documents]"
+NARAD_USE_DOCLING=1 narad-server
+```
+
+Without this flag, Narad uses a lighter built-in parser that handles plain text and common formats but may miss structure in complex PDFs.

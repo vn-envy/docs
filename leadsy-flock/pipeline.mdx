@@ -1,0 +1,98 @@
+---
+title: "How the Leadsy Flock Campaign Pipeline Works"
+sidebarTitle: "Pipeline"
+description: "Explore the six-step Pub/Sub-driven pipeline — Scout through Ad Kit — including inputs, outputs, failure handling, and Firestore receipts."
+---
+
+When you approve a campaign, Leadsy Flock sends a single Pub/Sub message to `flock-worker`. That message fans into six sequential pipeline steps, each running asynchronously, each writing a Firestore receipt when it finishes. The pipeline is designed to be safe-by-default: no Veo or Gemini Image calls happen before your YES, and every step is idempotent so a retry never double-spends.
+
+## Pipeline steps
+
+<Steps>
+  <Step title="Scout — Brand and market intelligence">
+    **Agent:** Scout  
+    **Input:** Business listing URL, Google Maps link, website URI, campaign brief  
+
+    Scout uses Gemini with Google Search and Maps to read everything publicly available about your shop. It builds a `BrandSpec` — a structured document containing your brand's colour palette, tone, theme ID, and a list of your own photo and media URIs (`ownUris`). Scout also gathers local competitor insights and builds a shelf of comparable ads in your category and city.
+
+    **Output:** `BrandSpec` (theme, palette, tone, ownUris, competitor insight, ad shelf)
+
+    **On failure:** The pipeline stops. The Firestore receipt records `status: error` with the failure reason. No subsequent steps run. You can trigger a retry from the run room.
+  </Step>
+
+  <Step title="Inka — Creative production">
+    **Agent:** Inka  
+    **Input:** `BrandSpec`, campaign brief, `ownUris`
+
+    Inka is the artist. It generates bilingual copy in English and your local Indic language, then starts two 8-second Veo 3.1 films: a **place film** showing your interior or storefront, and a **proof film** showing your dish, product, or result. Inka uses your own listing photos as Veo reference frames — no invented UGC, no stock models. It also requests a 2-second Lyria instrumental audio sting (no vocals). Inka starts Veo and returns immediately; the harvest step polls for completion.
+
+    **Output:** Copy variants (EN + Indic), Veo job IDs, Lyria job ID, Gemini Image still (if no usable shop photo exists)
+
+    **On failure:** The pipeline stops. Inka will not substitute invented imagery for missing shop photos — if `ownUris` is empty, it falls back to a Gemini Image still generated from your brief, not from scraped stock.
+  </Step>
+
+  <Step title="Harvest — Video polling and assembly">
+    **Agent:** Inka sidecar  
+    **Input:** Veo job IDs, Lyria job ID
+
+    Harvest polls Veo 3.1 until both 8-second clips (place + proof) are complete, then polls Lyria for the audio sting. Once all media is ready, ffmpeg derives five aspect ratios from the Veo 9:16 master: 4:5 feed, 1:1 square, 9:16 story, 1.91:1 landscape, and 16:9 for the landing page. Audio is muxed onto each clip in both English and Indic VO tracks.
+
+    **Output:** All media slots populated in Cloud Storage — stills, clips, and multi-ratio derivatives
+
+    **On failure:** Harvest retries on a backoff schedule. If Veo times out, the receipt records `status: polling` and the step remains open until the clip arrives or the campaign expires.
+  </Step>
+
+  <Step title="Creative Gate — Safety review">
+    **Agent:** Ledge  
+    **Input:** All copy variants, media slot paths
+
+    Ledge runs a three-layer safety check on every piece of copy:
+
+    1. **Regex pass** — Instant block on hard-coded banned strings
+    2. **Gemma classifier** — Lightweight on-device model scores copy for prohibited claims
+    3. **Gemini judge** — Full model review for edge cases that pass the first two layers
+
+    Ledge blocks copy containing: "guaranteed", "miracle", "cure", "100%", "clinically proven", medical claims, or any unsubstantiated superlative. All user-submitted text is also sanitised through Model Armor before it reaches any model.
+
+    **Output:** `pass` or `blocked_creative` status per copy variant
+
+    **On failure (blocked):** The receipt records `status: blocked_creative` with the failing clause highlighted. The pipeline pauses. You can edit the flagged copy and resume from the gate step.
+  </Step>
+
+  <Step title="Stella — Consent landing page">
+    **Agent:** Stella  
+    **Input:** Approved creative, BrandSpec theme, campaign brief
+
+    Stella builds the consent-first landing page at `/l/{campaign_id}`. The page uses your BrandSpec theme tokens (inkstone, ember, grove, slate, or paper) and displays your hero image, the place film, and an opt-in form with an explicit checkbox. The checkbox is required — Stella's template does not allow the form to submit without `consent: true`. The landing page is WCAG AA compliant; all colour tokens are pre-validated against contrast ratios.
+
+    **Output:** Live landing page at `/l/{campaign_id}`
+
+    **On failure:** The pipeline stops. The kit will not assemble without a valid landing page, because the kit's UTM links point to it.
+  </Step>
+
+  <Step title="Ad Kit — Final assembly">
+    **Input:** All approved media slots, copy variants, UTM-tracked landing URL
+
+    The final step assembles all six channel variants into the paste kit at `/k/{campaign_id}`. Each variant includes the headline (character-capped per platform), primary text, CTA, localised copy in English and Indic, UTM-tracked URL pointing to the Stella landing page, still path, clip path, proof clip path, pixel dimensions, and a lint check result.
+
+    **Output:** Complete paste kit at `/k/{campaign_id}`, `autopost: false`
+
+    **On failure:** The kit assembles partially and marks incomplete slots. You can access completed variants while missing slots finish.
+  </Step>
+</Steps>
+
+## Firestore receipt statuses
+
+Every step writes a receipt to Firestore as it progresses. You can read receipt status directly from the run room or via `GET /v1/campaigns/{id}`.
+
+| Status | Meaning |
+|--------|---------|
+| `started` | The step has begun processing |
+| `ok` | The step completed successfully |
+| `polling` | The step is waiting on an async job (Veo, Lyria) |
+| `blocked_creative` | Ledge blocked one or more copy variants at the Creative Gate |
+| `error` | The step encountered an unrecoverable error |
+
+<Note>
+  The pipeline is idempotent. If a step already has an `ok` receipt, the worker skips it on retry — you are never charged twice for the same step. To force a step to re-run (for example, if you want new copy after a `blocked_creative`), pass `forceRetry: true` on the relevant step when calling `POST /v1/campaigns/{id}/approve` again.
+</Note>

@@ -1,0 +1,144 @@
+---
+title: "Choosing and Configuring an Embedder for Smriti"
+sidebarTitle: "Embedders"
+description: "Compare Smriti's three built-in embedders — hash, Ollama, and OpenAI-compatible — and configure the right one for your deployment."
+---
+
+Smriti uses embeddings to power its semantic retrieval channel (*artha*), which finds conceptually similar memories even when exact keywords differ. Every time you add a conversation or call `mem.search()`, Smriti converts text to a dense vector using the embedder you configure. Choosing the right embedder shapes your memory quality, infrastructure requirements, and whether the system can run fully offline. Smriti ships three embedders out of the box; you can also implement the `Embedder` interface to bring your own.
+
+## Embedder comparison
+
+| Embedder | Dimensions | Requires network | Requires API key | Semantic quality | Best for |
+|---|---|---|---|---|---|
+| `HashEmbedder` | 256 (configurable) | No | No | Low — character n-gram hashing only | Offline testing, CI, no-GPU environments |
+| `OllamaEmbedder` | Model-dependent (e.g. 768 for nomic) | No (local) | No | High — real neural embeddings | Local development, privacy-first deployments |
+| `OpenAICompatEmbedder` | Model-dependent | Yes | Yes | High — cloud or self-hosted neural models | Production, cloud-hosted endpoints |
+
+## HashEmbedder
+
+`HashEmbedder` converts text into a fixed-size vector using deterministic character n-gram hashing. It runs entirely in-process with no external calls, no GPU, and no model files. You can instantiate it with zero configuration.
+
+```python
+from smriti import Smriti
+from smriti.embedder import HashEmbedder
+
+mem = Smriti(
+    path="memory.db",
+    embedder=HashEmbedder(dim=256),
+)
+```
+
+The `dim` parameter controls the vector dimension. The default of 256 keeps the database compact. You can increase it to 512 or 1024 to reduce hash collisions at the cost of larger stored vectors.
+
+<Note>
+`HashEmbedder` is fast and needs no external dependencies, but its semantic quality is significantly lower than neural embedders. Because it operates on character patterns rather than meaning, queries like "where do I live?" will not reliably surface facts phrased as "my current city is…". Use it for offline testing, CI pipelines, and initial prototyping — then switch to `OllamaEmbedder` or `OpenAICompatEmbedder` for production workloads where retrieval quality matters.
+</Note>
+
+## OllamaEmbedder
+
+`OllamaEmbedder` sends text to a locally running [Ollama](https://ollama.com) server and uses any model Ollama hosts. It produces real neural embeddings with no API key and no data leaving your machine.
+
+```python
+from smriti import Smriti, LLM
+from smriti.embedder import OllamaEmbedder
+
+mem = Smriti(
+    path="memory.db",
+    embedder=OllamaEmbedder(
+        model="nomic-embed-text",       # any model pulled into Ollama
+        base_url="http://localhost:11434",  # default; omit if using standard port
+    ),
+    llm=LLM("qwen3:14b", provider="ollama"),
+)
+```
+
+Pull the embedding model into Ollama before first use:
+
+```bash
+ollama pull nomic-embed-text
+```
+
+The benchmark runs throughout Smriti's README used `nomic-embed-text:v1.5` at 768 dimensions. This is a well-tested baseline for conversational memory workloads.
+
+## OpenAICompatEmbedder
+
+`OpenAICompatEmbedder` calls any `/v1/embeddings` endpoint that follows the OpenAI API shape. This covers OpenAI itself, Azure OpenAI, Groq, DeepSeek, vLLM, LM Studio, and any other compatible host.
+
+<CodeGroup>
+```python OpenAI
+from smriti import Smriti
+from smriti.embedder import OpenAICompatEmbedder
+
+mem = Smriti(
+    path="memory.db",
+    embedder=OpenAICompatEmbedder(
+        model="text-embedding-3-small",
+        base_url="https://api.openai.com/v1",
+        api_key="sk-...",
+    ),
+)
+```
+
+```python Self-hosted (vLLM / LM Studio)
+from smriti import Smriti
+from smriti.embedder import OpenAICompatEmbedder
+
+mem = Smriti(
+    path="memory.db",
+    embedder=OpenAICompatEmbedder(
+        model="nomic-embed-text-v1.5",
+        base_url="http://localhost:8000/v1",
+        api_key="not-required",          # some local servers accept any string
+    ),
+)
+```
+
+```python Azure OpenAI
+from smriti import Smriti
+from smriti.embedder import OpenAICompatEmbedder
+
+mem = Smriti(
+    path="memory.db",
+    embedder=OpenAICompatEmbedder(
+        model="text-embedding-ada-002",
+        base_url="https://<your-resource>.openai.azure.com/openai/deployments/<deployment>/",
+        api_key="<azure-api-key>",
+    ),
+)
+```
+</CodeGroup>
+
+## Decision guide
+
+Use this guide to pick the embedder that fits your situation:
+
+<CardGroup cols={3}>
+  <Card title="HashEmbedder" icon="bolt">
+    **Choose this when you need:**
+    - Fully offline operation with no model files
+    - Fast CI tests with deterministic behavior
+    - A quick prototype before committing to an embedder
+
+    **Trade-off:** Semantic search quality is low. Switch to a neural embedder before evaluating retrieval accuracy.
+  </Card>
+  <Card title="OllamaEmbedder" icon="server">
+    **Choose this when you need:**
+    - High semantic quality without sending data to a cloud provider
+    - Local development on a machine with a GPU or Apple Silicon
+    - No API key management
+
+    **Trade-off:** Requires Ollama running locally and the model pre-pulled.
+  </Card>
+  <Card title="OpenAICompatEmbedder" icon="cloud">
+    **Choose this when you need:**
+    - Managed cloud embeddings (OpenAI, Azure, Groq)
+    - A self-hosted vLLM or LM Studio endpoint
+    - Consistent embeddings across multiple machines
+
+    **Trade-off:** Requires network access and usually an API key. Embedding costs accumulate with usage.
+  </Card>
+</CardGroup>
+
+<Warning>
+Smriti stores the embedder's identity (model name, endpoint, and dimension) in the database when you first open it. **You cannot switch embedders on an existing database** without invalidating all stored vectors. If you need to change embedders, export your data with `mem.export_json(path)`, create a new database with the new embedder, and re-import with `mem.import_json(path)`.
+</Warning>

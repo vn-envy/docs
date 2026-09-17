@@ -1,0 +1,151 @@
+---
+title: "How PRISM Evaluates and Qualifies LLM Models"
+sidebarTitle: "Evaluation"
+description: "Follow PRISM's full pipeline: VoC-to-CTQ translation, Indic language detection, 5-trial scoring across four CTQ dimensions, and CLI options reference."
+---
+
+To qualify an LLM for your use case, PRISM needs to know two things: what you're building, and what "good enough" means for your context. You provide the first in plain English; PRISM derives the second automatically. The full pipeline — from your intent to a ranked list of models with Cpk scores — runs in under 90 seconds and costs less than $0.50.
+
+## Step 1: VoC → CTQ Translation
+
+Voice of Customer (VoC) to Critical-to-Quality (CTQ) translation is borrowed directly from Six Sigma product design. You describe what you're building in plain English; PRISM's `voc_parser` module translates that description into a machine-readable quality specification with numeric targets, Lower Specification Limits (LSL), and dimension weights.
+
+**Example VoC input:**
+```
+"Hindi WhatsApp bot for kirana store owners that generates inventory
+ orders from voice notes"
+```
+
+**Resulting CTQ spec:**
+```json
+{
+  "ctq_characteristics": [
+    {"name": "indic_fluency",    "target": 90, "lsl": 85, "usl": 100, "weight": 0.35},
+    {"name": "structured_output","target": 95, "lsl": 90, "usl": 100, "weight": 0.30},
+    {"name": "task_accuracy",    "target": 88, "lsl": 80, "usl": 100, "weight": 0.25},
+    {"name": "latency_ms",       "target": 1500,"lsl": 0, "usl": 2000,"weight": 0.10}
+  ],
+  "primary_pillar": "structured_output",
+  "secondary_pillars": ["language_fidelity"],
+  "hardware_tier": "mid"
+}
+```
+
+The VoC parser detects several signals automatically:
+- **Indic language keywords** ("Hindi", "Tamil", "Gujarati", regional script names) raise the `language_fidelity` weight and route Indic-specialist models (Sarvam-M 24B, Sarvam 2B) to the top of the candidate pool.
+- **Structured output keywords** ("JSON", "schema", "extract", "parse") set `structured_output` as the primary pillar.
+- **Reasoning keywords** ("analyse", "summarise", "explain", "multi-step") activate the reasoning pillar.
+- **Hardware tier** is inferred from latency requirements and cost constraints in the intent text.
+
+## Step 2: The 5-Trial Measurement Protocol
+
+PRISM runs **5 independent trials** for every candidate model. Five is the minimum sample size required for the Central Limit Theorem to produce a reliable estimate of standard deviation — with fewer trials, σ is too noisy to compute a trustworthy Cpk.
+
+Each trial:
+1. Generates a novel test case from the locked test generator (SHA `937202df`) — not the same prompt repeated, but a structurally equivalent task that tests the same CTQ dimensions.
+2. Sends the test case to the candidate model and records the response with latency and cost.
+3. Passes the response to all three judges in the Gauge R&R panel simultaneously.
+4. Collects four dimension scores per judge, then computes the weighted composite score for that trial.
+
+The five composite scores become the raw data for all Six Sigma statistics: mean (μ), standard deviation (σ), Cpk, and DPMO.
+
+<Info>
+  The test generator is SHA-pinned. This means the same intent always produces the same category of test cases, making measurements comparable across runs and preventing the evaluator from being tuned to favour particular models post-hoc.
+</Info>
+
+## Step 3: CTQ Scoring Dimensions
+
+Every judge panel member scores each model output across four dimensions. The composite score is the weighted sum.
+
+| Dimension | Weight | What It Measures | Hard Defect Condition |
+|-----------|--------|------------------|-----------------------|
+| **Task Accuracy** | 40% | Does the output fully satisfy the stated task intent? | Refusal, completely off-topic response |
+| **Structural Compliance** | 25% | Does the output match the required format — JSON schema, markdown, bullet list? | JSON parse failure, missing required fields |
+| **Language Fidelity** | 20% | Is the output in the correct language with appropriate quality and minimal code-switching? | Wrong output language entirely |
+| **Safety & Groundedness** | 15% | Is the output factual, free of hallucinations, and safe for the stated context? | Toxic or harmful content |
+
+**Composite score formula:**
+```
+composite = (task_accuracy × 0.40)
+           + (structural_compliance × 0.25)
+           + (language_fidelity × 0.20)
+           + (safety_groundedness × 0.15)
+```
+
+Any hard defect condition (JSON parse failure, wrong language, refusal, timeout over 30 seconds) zeros out the affected dimension, dragging the composite score to or near zero. This ensures hard failures count as defects in the DPMO calculation.
+
+## Budget Constraints
+
+Every evaluation run operates within two hard constraints:
+
+| Constraint | Limit |
+|-----------|-------|
+| Wall-clock time | 90 seconds per intent |
+| Total cost | $0.50 per intent |
+| Cost per candidate model | $0.10 maximum |
+
+If the wall-clock budget expires before all trials complete, PRISM uses the completed trials (minimum 3) and notes the truncated trial count in the response. Models that consistently hit the latency limit of 30 seconds per call receive a score of 0 for that trial, which substantially lowers their Cpk and DPMO.
+
+## CLI Options Reference
+
+Use these flags with `python measure.py` to customise your evaluation run.
+
+<AccordionGroup>
+  <Accordion title="--intent (required)">
+    Your plain-English description of the task the model must perform. PRISM uses this text to auto-detect the capability pillar, set CTQ weights, and generate relevant test cases.
+
+    ```bash
+    python measure.py --intent "Extract product names and prices from Hindi grocery receipts as JSON"
+    ```
+  </Accordion>
+
+  <Accordion title="--pillar (optional)">
+    Override the automatic pillar detection. Use this when PRISM's auto-detection picks the wrong pillar for an ambiguous intent.
+
+    **Valid values:** `structured_output` · `language_fidelity` · `reasoning` · `creative_generation`
+
+    ```bash
+    python measure.py --intent "..." --pillar reasoning
+    ```
+  </Accordion>
+
+  <Accordion title="--trials (default: 5)">
+    Number of measurement trials to run per candidate model. Minimum 3 for a valid standard deviation estimate. More trials produce tighter Cpk confidence but increase cost and wall-clock time.
+
+    ```bash
+    python measure.py --intent "..." --trials 7
+    ```
+  </Accordion>
+
+  <Accordion title="--lsl (default: 70)">
+    Lower Specification Limit — your minimum acceptable composite score on a 0–100 scale. Set this to match your actual quality requirement, not the PRISM default.
+
+    ```bash
+    python measure.py --intent "..." --lsl 85
+    ```
+  </Accordion>
+
+  <Accordion title="--candidates (default: 5)">
+    Maximum number of candidate models to evaluate. PRISM selects the top candidates by pillar-specific HuggingFace prior before running live trials.
+
+    ```bash
+    python measure.py --intent "..." --candidates 10
+    ```
+  </Accordion>
+
+  <Accordion title="--output (optional)">
+    File path for the full JSON results. If omitted, results are printed to the console only.
+
+    ```bash
+    python measure.py --intent "..." --output ./results/run_001.json
+    ```
+  </Accordion>
+
+  <Accordion title="--smoke-test">
+    Run a baseline DPMO test across all 25 models using a simple JSON compliance prompt. Flags any model below Three Sigma before you run a full evaluation.
+
+    ```bash
+    python measure.py --smoke-test --output baseline.json
+    ```
+  </Accordion>
+</AccordionGroup>

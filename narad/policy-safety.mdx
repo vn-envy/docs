@@ -1,0 +1,170 @@
+---
+title: "Narad's Safety Gates and Policy Controls"
+sidebarTitle: "Policy & Safety"
+description: "Explore Narad's Dharma policy gates, fail-closed side-effect actions, input-level blocking, Karma audit log, and how to customise your dharma_policy.json."
+---
+
+Narad is designed to act on your behalf — executing code, sending email, filling browser forms. That power requires clear boundaries. The **Dharma** layer provides those boundaries: every side-effect action is gated by policy, every decision is recorded to an immutable audit log, and the system fails closed when policy is uncertain. You can inspect every verdict and customise the policy for your environment without touching the source code.
+
+## What Is the Dharma Layer?
+
+Dharma (Sanskrit: *the normative operating boundary between "can" and "should"*) is Narad's policy engine. It intercepts three categories of side-effect action before they fire:
+
+| Action | What it gates |
+|--------|--------------|
+| `executor` | Python code execution via the sandboxed code runner |
+| `email_send` | SMTP email delivery by Krishna |
+| `browser_submit` | Browser form submission and file upload by Matsya |
+
+Every action consults the policy and produces a `DharmaVerdict` — allowed or denied, with reasons. The verdict is written to the **Karma audit log** regardless of outcome. Unknown actions are denied by default: any new side-effect channel must be explicitly registered in policy before it can fire.
+
+<Warning>
+  The Dharma gate is fail-closed by design. Disabling it entirely — by removing actions from the policy or setting `enabled: false` for all categories — means code execution, email, and form submissions can fire without a policy check or Karma record. Never disable the Dharma gate in a production or shared environment.
+</Warning>
+
+## Input-Level Blocking
+
+Before any Avatāra runs, the server applies `_dharma_gate(query)` — an input scanner that blocks three categories of dangerous input immediately, before any LLM call is made:
+
+<CardGroup cols={2}>
+  <Card title="Prompt Injection Patterns" icon="shield-xmark">
+    Common jailbreak and instruction-override patterns are matched against the raw input. Matching queries are rejected with an immediate SSE error. No Avatāra is invoked.
+  </Card>
+  <Card title="PII Collection Requests" icon="user-slash">
+    Requests that attempt to collect, store, or exfiltrate personally identifiable information are blocked before any agent runs.
+  </Card>
+  <Card title="Crisis Phrases" icon="triangle-exclamation">
+    Inputs containing crisis keywords (self-harm, emergency distress) are intercepted and receive a safe, human-directed response rather than being routed to an Avatāra.
+  </Card>
+  <Card title="Rate Limiting" icon="gauge">
+    Each user is limited to 10 requests per minute by default (configurable via `NARAD_RATE_LIMIT`). Excess requests receive HTTP 429 with a `Retry-After: 60` header.
+  </Card>
+</CardGroup>
+
+Blocked inputs are recorded in the Karma log with action `action_denied` so you have a full audit trail of rejected requests alongside approved ones.
+
+## The Karma Audit Log
+
+Every Dharma verdict — allowed or denied — is appended to `~/.narad/config/karma.jsonl`. This file is append-only: entries are never modified or deleted. Each entry contains:
+
+| Field | Contents |
+|-------|----------|
+| `action` | `action_allowed`, `action_denied`, `promote`, `accept`, `revert`, `expire`, `blocked_injection`, `blocked_hallucination`, `tapas_skipped` |
+| `sutra_id` | The action name or Sutra identifier |
+| `avatar` | Which Avatāra triggered the action |
+| `triggered_by` | Session ID that caused the event |
+| `tapas_score` | Score for Sutra promotions (null for action verdicts) |
+| `content_hash` | SHA-256 first 12 chars of Sutra content (Sutra events only) |
+| `critique_passed` | Whether the CAI self-critique passed (Sutra events only) |
+| `hallucination_free` | Whether the scored session passed the hallucination gate |
+| `reasons` | List of denial reasons (empty for allowed verdicts) |
+
+Query the log via the API or the UI:
+
+```bash
+# Retrieve all Karma entries
+curl http://127.0.0.1:8000/karma
+
+# Filter to denied actions (jq example)
+curl http://127.0.0.1:8000/karma | jq '[.[] | select(.action == "action_denied")]'
+```
+
+Open **Dashboard → Karma** in the UI to browse the mutation timeline visually.
+
+## The Code Executor Sandbox
+
+When Parashurama writes and runs Python code, the executor applies multiple layers of isolation beyond the Dharma gate:
+
+- **AST import analysis** — the code is parsed before execution. Dangerous imports (`os.system`, `subprocess`, `socket`, `requests`, and network libraries) block execution.
+- **Environment scrubbing** — the subprocess environment is reset to an allowlist. No API keys cross the boundary into the executed code.
+- **Wall-clock timeout** — execution is capped at 90 seconds by default (`EXECUTOR_TIMEOUT` env).
+- **Output cap** — generated file paths are returned; raw output is capped to prevent context explosion.
+- **Absolute path write blocking** — the executor cannot write to arbitrary filesystem locations; outputs land in `~/.narad/artifacts/` keyed by run ID.
+
+## Customising Policy via dharma_policy.json
+
+Narad writes a default policy file to `~/.narad/config/dharma_policy.json` on first run. Edit this file to customise gate behaviour without modifying source code. The server reads it on every gate call — no restart required.
+
+```json
+{
+  "sutra": {
+    "min_evidence_count": 1,
+    "min_content_words": 4,
+    "reject_markers": ["todo", "tbd", "placeholder", "lorem ipsum"]
+  },
+  "swapna": {
+    "allow_source_mutation": false,
+    "max_source_items": 100,
+    "require_provenance": true
+  },
+  "retrieval_policy": {
+    "mutable_keys": [
+      "top_k",
+      "fusion_mode",
+      "answer_verification",
+      "reflection_rounds",
+      "entity_swap",
+      "query_decomposition"
+    ]
+  },
+  "actions": {
+    "executor": {
+      "enabled": true
+    },
+    "email_send": {
+      "enabled": true,
+      "max_recipients": 10
+    },
+    "browser_submit": {
+      "enabled": true
+    }
+  }
+}
+```
+
+### Policy Fields Reference
+
+<AccordionGroup>
+  <Accordion title="actions — Side-effect gate configuration">
+    Each key under `actions` maps to a registered action name. Set `enabled: false` to disable an action entirely — all attempts will be denied and logged to Karma. Add a `max_recipients` field to `email_send` to cap the number of recipients per send call.
+
+    | Field | Type | Effect |
+    |-------|------|--------|
+    | `enabled` | boolean | `false` blocks the action unconditionally |
+    | `max_recipients` | integer | Caps email recipients (email_send only) |
+  </Accordion>
+
+  <Accordion title="sutra — Sutra promotion quality gates">
+    Controls the minimum quality bar for Tapas Sutra promotion. Raise `min_content_words` to require more substantial patterns. Add strings to `reject_markers` to block placeholder content from being promoted.
+
+    | Field | Default | Effect |
+    |-------|---------|--------|
+    | `min_evidence_count` | `1` | Minimum sessions before promotion |
+    | `min_content_words` | `4` | Minimum word count in Sutra content |
+    | `reject_markers` | `["todo", "tbd", ...]` | Strings that disqualify a Sutra candidate |
+  </Accordion>
+
+  <Accordion title="retrieval_policy — Mutable keys">
+    Limits which retrieval configuration keys can be modified at runtime. Keys not in this list are locked. This prevents Sutras or user prompts from quietly changing recall behaviour.
+  </Accordion>
+</AccordionGroup>
+
+<Info>
+  The policy file is overlaid onto hardcoded defaults. If a section is missing from your `dharma_policy.json` (for example, if you created the file before a new policy section was added in an update), the hardcoded defaults apply for that section. You never need a complete file — only the sections you want to override.
+</Info>
+
+## Security Defaults Summary
+
+| Default | Value | Override |
+|---------|-------|---------|
+| Server bind | `127.0.0.1` only | `--host 0.0.0.0` (use with `NARAD_AUTH=strict`) |
+| Auth mode | `local` (trust loopback) | `NARAD_AUTH=strict` (require bearer token) |
+| Bearer token | Auto-generated at `~/.narad/config/api_token` | Read-only, `chmod 600` |
+| Executor timeout | 90 seconds | `EXECUTOR_TIMEOUT` env |
+| Rate limit | 10 requests/minute | `NARAD_RATE_LIMIT` env |
+| Email dry-run | `dry_run=True` by default | Explicit user confirmation required to send |
+| Browser submit | Screenshot-first, dry-run | Explicit user confirmation required |
+
+<Warning>
+  Setting `NARAD_AUTH=off` disables bearer token enforcement entirely. This mode is for automated testing only. Never use it in a shared or networked environment.
+</Warning>

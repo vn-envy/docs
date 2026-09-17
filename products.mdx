@@ -1,0 +1,77 @@
+---
+title: "KritXlabs Product Directory: Five AI Tools Explained"
+sidebarTitle: "Products"
+description: "Explore the full KritXlabs suite — Smriti, Narad, Leadsy Flock, PRISM, and Rolecrft — with capabilities and links to each product's documentation."
+---
+
+KritXlabs ships five focused AI tools, each engineered to solve one real problem exceptionally well. Rather than building a monolithic platform, the portfolio gives you composable, open-source tools you can adopt individually or combine — for example, Narad uses Smriti as its memory layer, and PRISM can evaluate the models you plan to run inside either product. Use this directory to understand what each product does and decide where to start.
+
+<Accordion title="Smriti — Local-First AI Agent Memory">
+  Smriti (Sanskrit: *that which is remembered*) is a zero-infrastructure, local-first memory layer for AI agents. It stores every fact in a single SQLite file — no Postgres, Neo4j, Docker, or cloud account required — and uses bi-temporal supersession to preserve the full history of what changed and when, without ever deleting a record. Developers building LLM-powered applications reach for Smriti when they need inspectable, portable, production-grade memory that runs entirely on their own hardware.
+
+  **Key capabilities:**
+  - **Four-channel hybrid retrieval** — BM25 keyword, semantic vector, entity-graph, and temporal reasoning run in parallel and are fused into a single ranked context window
+  - **Bi-temporal supersession** — every fact carries a valid-time range and a transaction-time stamp, so you can query what the agent knew at any point in the past
+  - **Drop-in MCP server** — expose Smriti as a Model Context Protocol tool with a single command; any MCP-compatible agent framework connects immediately
+  - **Python SDK + Apache-2.0** — install with `pip`, use from any Python 3.9+ project, and fork or extend without restriction
+
+  <Card title="Get started with Smriti" icon="brain" href="/smriti/introduction">
+    Read the Smriti introduction and follow the quickstart to add memory to your agent in under five minutes.
+  </Card>
+</Accordion>
+
+<Accordion title="Narad — Multi-Agent Personal AI">
+  Narad is a privacy-first, multi-agent personal AI system modelled on the orchestrator archetype: a supervisor that routes each task to whichever specialist agent is best suited to handle it. The entire system runs locally on your machine, binds only to `127.0.0.1`, and uses your OS keychain for API key storage. Narad is built for individuals who want a powerful personal AI they control completely — researchers, engineers, and knowledge workers who are uncomfortable sending personal context to third-party cloud services.
+
+  **Key capabilities:**
+  - **Four specialist agents** — Matsya (research and web search), Rama (planning and calendars), Krishna (communication, education, and wellness), and Parashurama (code, shell, and automation)
+  - **Self-learning via Tapas and Sutras** — the system scores each interaction, extracts reusable lessons (Sutras), and injects them into future context automatically
+  - **Smriti-powered memory** — Narad uses Smriti as its recall layer, giving every agent access to your full conversation history with temporal awareness
+  - **Local voice mode** — hands-free operation using 100 % on-device speech recognition and synthesis, with no audio leaving your machine
+
+  <Card title="Get started with Narad" icon="robot" href="/narad/introduction">
+    Read the Narad introduction and set up your four-agent personal AI system.
+  </Card>
+</Accordion>
+
+<Accordion title="Leadsy Flock — AI Ad Agency for Neighbourhood Shops">
+  Leadsy Flock is an AI-powered advertising agency designed specifically for neighbourhood shops in India. You paste a Google Business listing URL you own, and a pipeline of four specialist agents — Scout, Inka, Stella, and Flo — reads your listing, assembles your shop's own photos and AI-generated video, writes bilingual copy in English and an Indic language, and hands you a ready-to-paste ad kit for Meta, WhatsApp, and Google. Flo, the director, never autoposts: every campaign requires explicit owner approval before anything goes live.
+
+  **Key capabilities:**
+  - **One-URL intake** — paste a Google Business listing URL; Scout extracts business name, category, photos, reviews, and operating hours automatically
+  - **Bilingual creative output** — every ad unit ships with copy in both English and an Indic language (Hindi and others supported), sized for Meta, WhatsApp, and Google placements
+  - **Veo 3.1 video generation** — Inka generates short-form video from your shop's own imagery using Google's Veo 3.1 model, keeping creative assets authentic to the business
+  - **Owner-gated approval** — the entire kit is delivered to a private landing page; nothing is published until the owner checks the consent box and clicks YES
+
+  <Card title="Get started with Leadsy Flock" icon="bullhorn" href="/leadsy-flock/introduction">
+    Read the Leadsy Flock introduction and generate your first bilingual ad kit.
+  </Card>
+</Accordion>
+
+<Accordion title="PRISM — LLM Quality Engineering">
+  PRISM (Process Reliability Index for Supplier Models) applies Six Sigma Statistical Process Control to the problem of selecting an LLM for production use. Most evaluation tools measure mean accuracy (μ); PRISM measures process capability (Cpk) — the metric that tells you whether a model is consistent enough to trust, not just whether it scores well on a benchmark. It is aimed at ML engineers, platform teams, and quality leads who need to make a defensible, data-backed decision about which model to run in a production system.
+
+  **Key capabilities:**
+  - **Cpk, DPMO, and σ-level per model** — the same statistical vocabulary used in manufacturing quality control, applied to LLM response consistency across your specific use case
+  - **3-judge Gauge R&R panel** — a Gauge Repeatability and Reproducibility study using three frontier models (Claude Opus, GPT-4o, Gemini) validates measurement system reliability before any capability score is reported
+  - **Bayesian MatchScore** — combines measured Cpk with Hugging Face community priors to produce a posterior probability that a given model is production-grade for your intent
+  - **VoC → CTQ translation** — describe your use case in plain English; PRISM's Voice-of-Customer parser converts it into Critical-to-Quality specifications and generates novel test cases automatically
+
+  <Card title="Get started with PRISM" icon="chart-bar" href="/prism/introduction">
+    Read the PRISM introduction and run your first LLM qualification study.
+  </Card>
+</Accordion>
+
+<Accordion title="Rolecrft — AI Career Intelligence">
+  Rolecrft is an AI career tool for job seekers who want a competitive edge grounded in data, not generic advice. You paste your resume and a target job description, and Rolecrft returns a scored analysis covering resume strength, ATS keyword alignment, and fit gap — plus an AI-edited version of your resume, STAR-format interview stories derived from your own experience, a role-specific interview question bank, and networking scripts tailored to the company. A full analysis costs $15 and delivers everything you need to walk into an interview prepared.
+
+  **Key capabilities:**
+  - **Scored resume analysis** — a numeric fit score with breakdown across experience alignment, skills match, and impact language, so you know exactly where to focus edits
+  - **ATS keyword optimisation** — identifies missing keywords from the job description and flags which ones to weave into your resume to pass automated screening systems
+  - **STAR interview stories** — generates structured Situation-Task-Action-Result narratives using the bullet points already on your resume, mapped to the competencies the role demands
+  - **Networking scripts and interview question bank** — role-specific outreach messages for LinkedIn and email, plus a curated set of likely interview questions with guidance on how to answer each one
+
+  <Card title="Get started with Rolecrft" icon="briefcase" href="/rolecrft/introduction">
+    Read the Rolecrft introduction and run your first career analysis.
+  </Card>
+</Accordion>
