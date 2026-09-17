@@ -1,36 +1,42 @@
 ---
-title: "Navigating the Darshan Dashboard and Its Five Tabs"
+title: "Narad Darshan Dashboard: All Seven Tabs Explained Here"
 sidebarTitle: "Dashboard"
-description: "Learn to use the five Darshan Dashboard tabs — Live, Kanban, Sutras, Memory, and Ops — to monitor, manage, and improve your Narad workspace."
+description: "Master all seven Darshan Dashboard tabs — Darshan, Karma, Smriti, DivyaDrishti, Tapasya, Gurukul, and Kunji — to monitor, manage, and improve Narad."
 ---
 
-The Darshan Dashboard gives you a real-time window into everything Narad is doing and learning. Open it by clicking the grid icon in the top-right of the Narad interface. The dashboard is organised into five tabs, each focused on a different aspect of your workspace: live agent activity, plan execution, learned patterns, project memory, and operational health.
+The Darshan Dashboard gives you a real-time window into everything Narad is doing and learning. Open it by clicking the grid icon in the top-right of the Narad interface. The dashboard is organised into seven tabs, each focused on a different aspect of your workspace: live agent activity, operational records, memory, metrics, self-learning, teaching, and key management.
 
 ## Dashboard Overview
 
 <CardGroup cols={2}>
-  <Card title="Live" icon="signal">
-    Real-time call graph showing active avatars, per-avatar latencies, and token usage for the current session.
+  <Card title="Darshan" icon="signal" href="/narad/dashboard#darshan-tab">
+    Real-time call graph showing active avatars, per-avatar latencies, and token usage for the current session, alongside a session trace panel.
   </Card>
-  <Card title="Kanban" icon="columns-3">
-    Step-by-step board tracking Rama's multi-avatar project plans across four columns: backlog, in progress, review, and done.
+  <Card title="Karma" icon="columns-3" href="/narad/dashboard#karma-tab">
+    Operational workspace: project Kanban boards tracking Rama's multi-step plans, plus the full record of policy verdicts and action events.
   </Card>
-  <Card title="Sutras" icon="book-open">
-    Manage the patterns Narad has learned from your sessions — accept pending sutras, revert active ones, or bulk-approve a batch.
+  <Card title="Smriti" icon="brain" href="/narad/dashboard#smriti-tab">
+    Browse the per-project memory wikis, retained commitments, and provenance records that Narad has compiled from your sessions.
   </Card>
-  <Card title="Memory" icon="brain">
-    Browse the Smriti v2 project wikis attached to your workspace, including goals, decisions, features, and insights.
+  <Card title="DivyaDrishti" icon="chart-bar" href="/narad/dashboard#divyadrishti-tab">
+    Runtime metrics, architecture scorecards, observability data, and capability visibility for your installation.
   </Card>
-  <Card title="Ops" icon="shield-check">
-    Andon alert log, 5S filesystem health score, and a button to generate a full DMAIC quality report.
+  <Card title="Tapasya" icon="sparkles" href="/narad/dashboard#tapasya-tab">
+    Manage the Sutras Narad has learned from your sessions — review pending patterns, accept or revert them, and track self-evolution history.
+  </Card>
+  <Card title="Gurukul" icon="book-open" href="/narad/dashboard#gurukul-tab">
+    The teaching chamber: topics decomposed into atoms, climbed rung by rung, with the system checking your understanding as you go.
+  </Card>
+  <Card title="Kunji" icon="key" href="/narad/dashboard#kunji-tab">
+    Paste API keys once — Narad auto-detects the provider, runs a live test, and stores them in your OS keychain. Manage subscriptions here too.
   </Card>
 </CardGroup>
 
 ---
 
-## Live Tab
+## Darshan Tab
 
-The Live tab renders the current session's call graph as an animated diagram. Each node represents an avatar that has been invoked; edges show the delegation order. Hover over a node to see:
+The Darshan tab renders the current session's call graph as an animated diagram. Each node represents an avatar that has been invoked; edges show the delegation order. Hover over a node to see:
 
 - **Latency** — time the avatar took to respond, in milliseconds
 - **Token footprint** — prompt and completion tokens consumed
@@ -38,15 +44,21 @@ The Live tab renders the current session's call graph as an animated diagram. Ea
 
 The call graph updates in real time as SSE events arrive. You do not need to refresh the page. When a session finishes, the graph freezes at its final state and remains visible until you start a new session.
 
+A **Traces** panel on the right side of the Darshan tab shows structured spans for all recent sessions — each span includes the avatar name, task digest, latency, and token count. Use this panel to compare performance across turns without leaving the live view.
+
 <Info>
-  The Live tab pulls data directly from the `avatar_start` and `avatar_done` SSE events emitted by the `/chat` endpoint. If you are building custom tooling, you can reproduce the same view by consuming those events yourself — see the [API Reference](/narad/api-reference) for the full event schema.
+  The Darshan tab pulls data directly from the `avatar_start` and `avatar_done` SSE events emitted by the `/chat` endpoint. If you are building custom tooling, you can reproduce the same view by consuming those events yourself — see the [API Reference](/narad/api-reference) for the full event schema.
 </Info>
 
 ---
 
-## Kanban Tab
+## Karma Tab
 
-The Kanban tab tracks Rama's structured project plans. When Rama breaks a multi-step task into a plan, each step becomes a card on this board. Cards move through four columns automatically as avatars claim and complete work.
+The Karma tab is the operational workspace. It combines two surfaces: the project Kanban board and the Karma audit record.
+
+### Kanban Boards
+
+When Rama breaks a multi-step task into a plan, each step becomes a card on a Kanban board. Cards move through four columns automatically as avatars claim and complete work.
 
 | Column | Meaning |
 |--------|---------|
@@ -58,14 +70,63 @@ The Kanban tab tracks Rama's structured project plans. When Rama breaks a multi-
 Each card shows the step title, the owning avatar, and timestamps for when the step was started and completed. Click a card to expand it and see the result digest.
 
 <Accordion title="How Kanban boards are scoped">
-  Each kanban board is tied to a single `session_id`. If you start a new session for a continuation of the same project, Rama creates a new board for that session. You can view all active boards (sessions with at least one step still in backlog, in-progress, or review) by navigating to **Kanban → All Sessions** at the top of the tab, or by calling `GET /kanban`.
+  Each kanban board is tied to a single `session_id`. If you start a new session for a continuation of the same project, Rama creates a new board for that session. You can view all active boards (sessions with at least one step still in backlog, in-progress, or review) via `GET /kanban`, or by selecting **All Sessions** at the top of the Karma tab.
+</Accordion>
+
+### Action Record
+
+Below the Kanban board, the Karma tab shows the recent action record — a list of Dharma verdicts (allowed or denied actions), Sutra promotions, and Andon alerts. This is a filtered view of the full audit trail available at `GET /karma`.
+
+---
+
+## Smriti Tab
+
+The Smriti tab lets you browse the per-project memory wikis attached to your workspace. Each project has its own wiki directory containing pages for goals, decisions, features, and insights that Narad has compiled from your sessions.
+
+Use the search bar at the top of the tab to filter across all wiki pages by keyword. Click any page title to open it in a read-only viewer. Wiki pages are updated automatically after each session — you do not need to trigger a save manually.
+
+<Accordion title="How wiki pages are created">
+  After every chat session, Narad's Scribe process compiles the session trace into the relevant project wiki. If no project exists yet for a topic, Narad creates one automatically the first time you discuss it. You can view which project a session belongs to by checking its `session_id` in the wiki directory structure at `~/.narad/wiki/<user_id>/<project_id>/`.
 </Accordion>
 
 ---
 
-## Sutras Tab
+## DivyaDrishti Tab
 
-Sutras are compact patterns that Narad has inferred from your sessions — things like preferred response styles, recurring workflows, or domain-specific rules. Narad's Tapas engine scores each candidate pattern and promotes high-confidence ones to a pending queue. You decide what to keep.
+The DivyaDrishti tab surfaces runtime metrics, architecture health, and capability visibility for your Narad installation. It has three sections.
+
+### Runtime Metrics
+
+Aggregated token consumption, per-avatar latency distributions, and session-level statistics for the current server process. Use this to understand which avatars are slowest and where token costs are accumulating.
+
+### Architecture Scorecard
+
+A read-only scorecard of which capabilities are live based on your installed packages and configured API keys. Each capability (web search, voice, document extraction, calendar sync, and so on) shows a green, yellow, or red status with a brief reason.
+
+### Andon Alert Log
+
+The Andon alert log records every time Narad's quality gate fired during a session. An Andon alert triggers when any of the following conditions occur:
+
+| Trigger | Condition |
+|---------|-----------| 
+| `EMPTY_RESULT` | Avatar response is too short (below the minimum length threshold) |
+| `TIMEOUT` | Avatar took longer than the configured timeout to respond |
+| `CONNECTION` | Connection retries were exhausted |
+| `TOOL_ERROR` | A tool call failed and the avatar did not recover with a substantive result |
+
+Each log entry shows the avatar name, trigger type, session ID, and a preview of the task and result. When an Andon fires, Narad automatically invokes Parashurama in diagnostic mode and appends the diagnosis to the same entry. You can use `GET /andon/log` to query the log programmatically, and `GET /andon/stats` for aggregate counts by avatar and failure class.
+
+<Note>
+  The DivyaDrishti tab also includes a **DMAIC report** button that invokes Parashurama to generate a full Define–Measure–Analyse–Improve–Control quality report for the last seven days. Generation takes 30–60 seconds. The report is saved to `~/.narad/wiki/<user_id>/quality/DMAIC_<date>.md` and cached for instant retrieval via `GET /quality/report`.
+</Note>
+
+---
+
+## Tapasya Tab
+
+Tapasya is the self-evolution chamber. It shows the Sutras Narad has learned from your sessions and gives you full control over which patterns are applied to future runs.
+
+Sutras are compact patterns inferred from high-scoring responses — things like preferred response styles, recurring workflows, or domain-specific rules. The Tapas engine scores each candidate and promotes high-confidence ones to a pending queue. You decide what to keep.
 
 ### Accepting a Sutra
 
@@ -80,13 +141,13 @@ Reverting requires a two-step confirmation to prevent accidental removal.
     Press the **Revert** button on an active sutra. A confirmation banner appears above the entry.
   </Step>
   <Step title="Confirm the revert">
-    Click **Confirm Revert** in the banner within 10 seconds. The sutra moves back to pending state and is no longer applied to new sessions.
+    Click **Confirm Revert** in the banner within the confirmation window. The sutra moves back to pending state and is no longer applied to new sessions.
   </Step>
 </Steps>
 
 ### Bulk Accept
 
-When several patterns are in the pending queue, use **Bulk Accept** (top-right of the Sutras tab) to promote all of them to active in one action. Bulk accept skips the two-step confirmation, so review the list before committing.
+When several patterns are in the pending queue, use **Bulk Accept** (top-right of the Tapasya tab) to promote all of them to active in one action. Review the list before committing — bulk accept skips the two-step confirmation.
 
 <Warning>
   Reverting a sutra only removes it from active inference — it does not delete the pattern or its karma history. Use `GET /karma` via the API to audit the full mutation log if you need a complete record of what changed.
@@ -94,39 +155,31 @@ When several patterns are in the pending queue, use **Bulk Accept** (top-right o
 
 ---
 
-## Memory Tab
+## Gurukul Tab
 
-The Memory tab lets you browse the Smriti v2 project wikis attached to your workspace. Each project has its own wiki directory containing pages for goals, decisions, features, and insights that Narad has compiled from your sessions.
+The Gurukul tab is Narad's teaching chamber. Ask Krishna to teach you any topic — machine learning, a programming language, a historical period, anything — and Gurukul tracks your learning journey through a structured syllabus.
 
-Use the search bar at the top of the tab to filter across all wiki pages by keyword. Click any page title to open it in a read-only viewer. Wiki pages are updated automatically after each session — you do not need to trigger a save manually.
+Each topic is decomposed into atomic concepts arranged into four progressive rungs: beginner, intermediate, advanced, and mastery. Krishna presents lessons on the current rung, checks your understanding with questions, and only advances you when you demonstrate mastery. Your progress persists between sessions.
 
-<Accordion title="How wiki pages are created">
-  After every chat session, Narad's Scribe process compiles the session trace into the relevant project wiki. If no project exists yet for a topic, Narad creates one automatically the first time you discuss it. You can view which project a session belongs to by checking its `session_id` in the wiki directory structure at `~/.narad/wiki/<user_id>/<project_id>/`.
-</Accordion>
+Use the Gurukul tab to:
+- View all active topics and your progress through each syllabus
+- Open a specific lesson canvas
+- Download lesson artifacts (flashcards, concept diagrams, summaries)
+- Resume a topic from where you left off in a previous session
 
 ---
 
-## Ops Tab
+## Kunji Tab
 
-The Ops tab surfaces operational health signals for your Narad installation. It has three sections: the Andon alert log, the 5S filesystem health score, and the DMAIC quality report trigger.
+The Kunji tab is your key and subscription manager. Paste an API key here once — Narad auto-detects the provider from the key prefix, runs a live one-token connectivity test, and stores it in your OS keychain (macOS Keychain or libsecret on Linux). The raw key is never shown again after the initial paste.
 
-### Andon Alert Log
+| Key prefix | Provider |
+|------------|----------|
+| `dsk-` | DeepSeek (router + Tapas judge) |
+| `AIza` | Google Gemini (embeddings + media) |
+| `tvly-` | Tavily (Matsya web search) |
+| `sk-ant-` | Anthropic Claude |
 
-The Andon alert log records every time Narad's quality gate fired during a session. An Andon alert triggers when any of the following conditions occur:
+Kunji also shows the live status of each stored key — when it was last tested, whether the test passed, and which capabilities it unlocks. Click **Test** next to any key to re-run the connectivity check on demand.
 
-| Trigger | Condition |
-|---------|-----------|
-| `EMPTY_RESULT` | Avatar response is too short (below the minimum length threshold) |
-| `TIMEOUT` | Avatar took longer than 120 seconds to respond |
-| `CONNECTION` | Connection retries were exhausted |
-| `TOOL_ERROR` | A tool call failed and the avatar did not recover with a substantive result |
-
-Each log entry shows the avatar name, trigger type, session ID, and a preview of the task and result. When an Andon fires, Narad automatically invokes Parashurama in diagnostic mode and appends the diagnosis to the same entry. You can use `GET /andon/log` to query the log programmatically, and `GET /andon/stats` for aggregate counts by avatar and failure class.
-
-### 5S Filesystem Health
-
-The 5S section shows the latest score from Narad's automated workspace cleanup process, which runs daily in the background. The score reflects the cleanliness of files under `~/.narad/` — stale session traces, orphaned artifacts, and outdated cache entries all lower the score. Click **Run Cleanup** to trigger an immediate dry run (no files are deleted unless you uncheck the dry-run option), or use `POST /5s/shine` from the API.
-
-<Note>
-  The Ops tab DMAIC report button invokes Parashurama to generate a full Define–Measure–Analyse–Improve–Control quality report for the last seven days. Generating a report takes 30–60 seconds. Once generated, the report is cached and also saved to `~/.narad/wiki/<user_id>/quality/DMAIC_<date>.md`. You can retrieve the most recent cached report at any time with `GET /quality/report` without regenerating it.
-</Note>
+If you previously set API keys as environment variables and want to migrate them to the keychain, use `POST /connections/import-env` from the API to run a one-time migration.

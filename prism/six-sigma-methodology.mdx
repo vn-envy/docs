@@ -1,5 +1,5 @@
 ---
-title: "Six Sigma SPC Applied to LLM Selection Decisions"
+title: "Six Sigma Statistical Process Control for LLM Selection"
 sidebarTitle: "Six Sigma"
 description: "Learn why mean scores fail in production, how Cpk, DPMO, and sigma level quantify LLM consistency, and how the Bayesian MatchScore formula works."
 ---
@@ -28,13 +28,13 @@ Every leaderboard ranks Model B higher on raw benchmark average. But Model B's s
 
 Cpk tells you how many standard deviations sit between your model's mean output quality and your Lower Specification Limit (LSL). The formula for a one-sided quality metric (where "too high quality" is never a defect) is:
 
-```
+```txt
 Cpk = (μ − LSL) / (3σ)
 ```
 
 For the two models above, with an LSL of 70:
 
-```
+```txt
 Model A:  Cpk = (91.0 − 70) / (3 × 1.6)  = 21.0 / 4.8  = 4.38  ← Excellent
 Model B:  Cpk = (81.0 − 70) / (3 × 20.2) = 11.0 / 60.6 = 0.18  ← Incapable
 ```
@@ -49,7 +49,7 @@ Model A scores 4.38 — well above the 1.33 production-grade threshold. Model B 
 
 DPMO normalises defect counts to a per-million scale so you can compare across different sample sizes. In manufacturing, a "defect" is any part that fails to meet specification. In PRISM, a defect is any LLM output whose composite score falls below your LSL, or any hard failure (schema violation, wrong language, timeout, refusal).
 
-```
+```txt
 DPMO = (defects / opportunities) × 1,000,000
 ```
 
@@ -81,11 +81,11 @@ PRISM converts DPMO to sigma level via linear interpolation on the Motorola tabl
 
 Five trials per model is the minimum for a reliable standard deviation estimate (by the Central Limit Theorem), but it is still a small sample. A single unlucky run can depress a good model's score; a single lucky run can inflate a mediocre one. PRISM uses Bayesian inference to stabilise results by blending measured performance with HuggingFace leaderboard priors.
 
-**The prior** comes from `hf_archive.json` — archived HuggingFace Open LLM Leaderboard scores for all 25 candidate models, normalised to the 0–100 scale and indexed by capability pillar.
+**The prior** comes from `hf_archive.json` — archived HuggingFace Open LLM Leaderboard scores for all 26 candidate models, normalised to the 0–100 scale and indexed by capability pillar.
 
 **The posterior** blends prior and measured likelihood:
 
-```
+```txt
 posterior_μ = 0.30 × prior_μ  +  0.70 × measured_μ
 ```
 
@@ -95,7 +95,7 @@ The 70/30 split means measured results dominate, but the prior prevents a single
 
 MatchScore is the final ranking metric PRISM uses to order candidate models. It explicitly rewards tight sigma, not just high mean:
 
-```
+```txt
 MatchScore = 0.6 × posterior_μ  +  0.4 × (100 − normalised_σ)
 ```
 

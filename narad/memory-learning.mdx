@@ -1,5 +1,5 @@
 ---
-title: "How Narad Remembers and Improves Over Time"
+title: "Narad Memory and Self-Learning: Smriti and Tapas Guide"
 sidebarTitle: "Memory & Learning"
 description: "Understand Smriti memory, 90-day Vismriti decay, the Tapas scoring engine, and how Sutras compound into better responses — all stored on your machine."
 ---
@@ -8,7 +8,7 @@ Narad has two distinct systems that make it feel smarter the more you use it: **
 
 ## Smriti — Conversation Memory
 
-Every time an Avatāra completes a run, Narad embeds both the task and the response using the Gemini `text-embedding-005` model (768 dimensions; OpenAI `text-embedding-3-small` is the fallback) and writes the vector to a local **LanceDB** store at `~/.narad/memory/`. It also writes to a **SQLite FTS5** full-text index at `~/.narad/memory_fts.db` for exact-match recall.
+Every time an Avatāra completes a run, Narad embeds both the task and the response using a local embedding model (Gemini `gemini-embedding-001` when a Gemini key is present, with OpenAI `text-embedding-3-small` as the fallback) and writes the vector to a local **LanceDB** store at `~/.narad/memory/`. It also writes to a **SQLite FTS5** full-text index at `~/.narad/memory_fts.db` for exact-match recall.
 
 At the start of the next run, before the Avatāra sees your request, Narad calls `recall()`: it embeds your current task, runs an approximate nearest-neighbour search over LanceDB, applies the Vismriti decay filter, and prepends the surviving memories as a `[MEMORY]` block in the enriched task.
 
@@ -18,10 +18,10 @@ The recall pipeline runs these steps in order:
 
 <Steps>
   <Step title="Embed the current task">
-    Narad embeds your incoming message (the same model used for storage). The embedding is cached with `@lru_cache(128)` so repeated queries within a session do not trigger duplicate API calls.
+    Narad embeds your incoming message using the same model used for storage. Repeated queries within a session are deduplicated to avoid unnecessary API calls.
   </Step>
   <Step title="Run approximate nearest-neighbour search">
-    LanceDB finds the top-3 most semantically similar past conversations using L2 distance. Records with a distance greater than 1.3 are discarded as too dissimilar to be useful.
+    LanceDB finds the most semantically similar past conversations. Records that are too dissimilar to your current task are automatically discarded before injection.
   </Step>
   <Step title="Apply Vismriti decay (90-day TTL)">
     Any memory older than 90 days is automatically excluded. This is the **Vismriti** (forgetting) layer — stale context is worse than no context.
@@ -38,7 +38,7 @@ The recall pipeline runs these steps in order:
 
 Memories expire after **90 days** by default. This prevents stale or outdated context from polluting future responses. The decay window is configurable via the `max_age_days` parameter if you need to adjust it.
 
-A deduplication gate also runs on every new memory write: if the nearest existing memory has an L2 distance less than 0.10, the write is skipped — near-duplicate memories are not stored.
+A deduplication gate also runs on every new memory write: if a new memory is too similar to an existing one, the write is skipped — near-duplicate memories are not stored.
 
 ### Smriti v2 — Project-Scoped Wiki
 
@@ -63,7 +63,7 @@ Tapas (Sanskrit: *disciplined austerity that generates transformative power*) ru
 
 ### How Tapas Scores a Response
 
-After each run, Tapas submits the task and response to a **DeepSeek R1 judge** (independent of the Avatāra being scored) with an Avatāra-specific rubric. The judge returns a score, a reason, and two hard boolean gates:
+After each run, Tapas submits the task and response to a **DeepSeek judge** (independent of the Avatāra being scored) with an Avatāra-specific rubric. The judge returns a score, a reason, and two hard boolean gates:
 
 <Steps>
   <Step title="Domain-specific rubric scoring">
@@ -113,13 +113,13 @@ Use **Accept all (N)** to bulk-accept pending Sutras. Reverting requires a two-s
 - **Duplicate suppression** — a new Sutra candidate is checked against all active Sutras by batch cosine similarity. If any match exceeds 0.92 similarity, the candidate is dropped.
 - **Injection sanitisation** — before any Sutra is injected into a prompt, `_sanitize_sutra()` strips candidates containing prompt injection patterns. Blocked Sutras are logged to Karma with action `blocked_injection`.
 - **24-hour cooldown** — a newly promoted Sutra is not injected until 24 hours after promotion (configurable via `SUTRA_COOLDOWN_HOURS`).
-- **Tapas skip event** — if the DeepSeek R1 judge is unreachable after two retries with exponential backoff, Tapas emits a `tapas_skipped` Karma event and the session continues without scoring. No response is ever blocked by a judge timeout.
+- **Tapas skip event** — if the judge model is unreachable after two retries with exponential backoff, Tapas emits a `tapas_skipped` Karma event and the session continues without scoring. No response is ever blocked by a judge timeout.
 
 ### Tapas Configuration
 
 | Environment variable | Default | Effect |
 |---------------------|---------|--------|
-| `TAPAS_JUDGE_MODEL` | `deepseek/deepseek-r1` | Override the judge model |
+| `TAPAS_JUDGE_MODEL` | `deepseek/deepseek-v4-pro` | Override the judge model |
 | `TAPAS_PROMOTE_THRESHOLD` | `0.80` | Minimum score for promotion |
 | `TAPAS_SUTRA_TTL_DAYS` | `90` | Days before a Sutra expires |
 | `TAPAS_SIM_THRESHOLD` | `0.92` | Cosine similarity threshold for dedup |

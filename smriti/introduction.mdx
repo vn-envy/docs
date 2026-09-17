@@ -1,5 +1,5 @@
 ---
-title: "Smriti: Local-First Memory Layer for AI Agents"
+title: "Smriti: AI Agent Memory Layer for Local-First Apps"
 sidebarTitle: "Introduction"
 description: "Smriti gives your AI agents persistent, bi-temporal memory backed by a single SQLite file — no cloud account, Docker, or external database required."
 ---
@@ -26,16 +26,16 @@ Smriti (स्मृति — Sanskrit for *"that which is remembered"*) is a z
 ## Key features
 
 <CardGroup cols={2}>
-  <Card title="Zero Infrastructure" icon="database">
+  <Card title="Zero Infrastructure" icon="database" href="/smriti/installation">
     One SQLite file is everything. No cluster to provision, no version-matching between services, and no cloud account to create. `pip install smriti-agents` and you're done.
   </Card>
-  <Card title="Bi-Temporal Memory" icon="clock">
+  <Card title="Bi-Temporal Memory" icon="clock" href="/smriti/quickstart">
     Facts are never deleted — they're superseded with validity windows. Ask "where does the user live now?" and "where did they live before June?" against the same store.
   </Card>
-  <Card title="Four-Channel Retrieval" icon="magnifying-glass">
+  <Card title="Four-Channel Retrieval" icon="magnifying-glass" href="/smriti/api-reference">
     Lexical (BM25), semantic (vector), entity (graph traversal), and temporal channels fuse via Reciprocal Rank Fusion to surface the most relevant context every time.
   </Card>
-  <Card title="MCP Server" icon="plug">
+  <Card title="MCP Server" icon="plug" href="/smriti/mcp-server">
     Run `smriti-mcp --db memory.db` to expose six typed memory tools to any MCP-compatible agent — no extra dependencies, no auth service, fully offline by default.
   </Card>
 </CardGroup>
@@ -105,10 +105,10 @@ You can select individual channels or use named **retrieval profiles** (`facts`,
 ## Project details
 
 <CardGroup cols={2}>
-  <Card title="Version" icon="tag">
+  <Card title="Version" icon="tag" href="/smriti/installation">
     0.3.2 Alpha — Apache-2.0 licensed. The temporal model, entity graph, retrieval profiles, and benchmark harness are all included with no paid tier.
   </Card>
-  <Card title="Dependencies" icon="box">
+  <Card title="Dependencies" icon="box" href="/smriti/installation">
     Python 3.9+ with stdlib and `numpy` as the only required dependencies. Optional: any OpenAI-compatible LLM endpoint and any embedding model.
   </Card>
 </CardGroup>

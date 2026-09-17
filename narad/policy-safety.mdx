@@ -1,5 +1,5 @@
 ---
-title: "Narad's Safety Gates and Policy Controls"
+title: "Narad Safety Gates, Dharma Policy, and Karma Audit"
 sidebarTitle: "Policy & Safety"
 description: "Explore Narad's Dharma policy gates, fail-closed side-effect actions, input-level blocking, Karma audit log, and how to customise your dharma_policy.json."
 ---
@@ -27,16 +27,16 @@ Every action consults the policy and produces a `DharmaVerdict` — allowed or d
 Before any Avatāra runs, the server applies `_dharma_gate(query)` — an input scanner that blocks three categories of dangerous input immediately, before any LLM call is made:
 
 <CardGroup cols={2}>
-  <Card title="Prompt Injection Patterns" icon="shield-xmark">
+  <Card title="Prompt Injection Patterns" icon="shield-xmark" href="/narad/policy-safety#input-level-blocking">
     Common jailbreak and instruction-override patterns are matched against the raw input. Matching queries are rejected with an immediate SSE error. No Avatāra is invoked.
   </Card>
-  <Card title="PII Collection Requests" icon="user-slash">
+  <Card title="PII Collection Requests" icon="user-slash" href="/narad/policy-safety#input-level-blocking">
     Requests that attempt to collect, store, or exfiltrate personally identifiable information are blocked before any agent runs.
   </Card>
-  <Card title="Crisis Phrases" icon="triangle-exclamation">
+  <Card title="Crisis Phrases" icon="triangle-exclamation" href="/narad/policy-safety#input-level-blocking">
     Inputs containing crisis keywords (self-harm, emergency distress) are intercepted and receive a safe, human-directed response rather than being routed to an Avatāra.
   </Card>
-  <Card title="Rate Limiting" icon="gauge">
+  <Card title="Rate Limiting" icon="gauge" href="/narad/configuration#rate-limiting">
     Each user is limited to 10 requests per minute by default (configurable via `NARAD_RATE_LIMIT`). Excess requests receive HTTP 429 with a `Retry-After: 60` header.
   </Card>
 </CardGroup>

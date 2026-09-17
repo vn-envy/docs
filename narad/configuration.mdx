@@ -28,7 +28,7 @@ Narad is configured entirely through environment variables — there is no separ
   <Tab title="Learning & Quality">
     | Variable | Values | Default | Description |
     |----------|--------|---------|-------------|
-    | `TAPAS_JUDGE_MODEL` | model ID string | _(uses default Tapas model)_ | Override the model used for sutra scoring |
+    | `TAPAS_JUDGE_MODEL` | model ID string | `deepseek/deepseek-v4-pro` | Override the model used for sutra scoring |
     | `TAPAS_PROMOTE_THRESHOLD` | float 0–1 | `0.80` | Minimum score for a sutra to reach the pending queue |
     | `ANDON_MIN_LENGTH` | integer (chars) | `80` | Minimum response length before an Andon fires |
     | `ANDON_LATENCY_MS` | integer (ms) | `120000` | Latency threshold that triggers an Andon timeout alert |

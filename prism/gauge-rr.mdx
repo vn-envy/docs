@@ -1,5 +1,5 @@
 ---
-title: "Understanding Gauge R&R in PRISM's Judge Panel"
+title: "Understanding Gauge R&R in PRISM's 3-Judge Eval Panel"
 sidebarTitle: "Gauge R&R"
 description: "Learn how PRISM's 3-judge Gauge R&R panel validates measurement reliability before trusting model scores, and what to do when it fails."
 ---
@@ -10,7 +10,7 @@ Before you trust a measurement, you need to trust the measuring instrument. In m
 
 Gauge R&R (Repeatability and Reproducibility) quantifies how much of the total observed variance in scores comes from the measurement system itself, as opposed to real differences between the candidate models being evaluated.
 
-```
+```txt
 Gauge R&R % = (measurement system variance / total variance) × 100
 ```
 
@@ -26,13 +26,13 @@ A low Gauge R&R % means the judges agree and the variance you observe is real si
 PRISM's Gauge R&R panel consists of three frontier models chosen to represent different reasoning lineages and model sizes:
 
 <CardGroup cols={3}>
-  <Card title="GPT-4o" icon="brain">
+  <Card title="GPT-4o" icon="brain" href="https://platform.openai.com/docs/models/gpt-4o">
     Primary judge. Strong analytical reasoning and consistent instruction-following. Contributes the anchor score for each evaluation dimension.
   </Card>
-  <Card title="GPT-4o-mini" icon="microchip">
+  <Card title="GPT-4o-mini" icon="microchip" href="https://platform.openai.com/docs/models/gpt-4o-mini">
     Size-diversity judge. Smaller model from the same family introduces independence between panel members and guards against single-provider bias.
   </Card>
-  <Card title="Llama 3.3 70B" icon="circle-nodes">
+  <Card title="Llama 3.3 70B" icon="circle-nodes" href="https://console.groq.com/docs/models">
     Open-weight judge via Groq. Provides a fully independent third perspective from a different model family and provider.
   </Card>
 </CardGroup>
@@ -53,7 +53,7 @@ The 30% threshold comes directly from the AIAG (Automotive Industry Action Group
 
 Before computing Gauge R&R %, PRISM checks whether any single trial produced wildly inconsistent scores across the three judges. If the **inter-judge standard deviation** for a trial exceeds 20 points on the 0–100 scale, that trial is flagged for review.
 
-```
+```txt
 inter_judge_sigma = std_dev([judge1_score, judge2_score, judge3_score])
 ```
 

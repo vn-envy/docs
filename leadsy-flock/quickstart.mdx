@@ -1,7 +1,7 @@
 ---
-title: "Launch Your First Campaign with Leadsy Flock"
+title: "Leadsy Flock Quickstart: From URL to Ad Kit in 5 Steps"
 sidebarTitle: "Quickstart"
-description: "Go from a Google listing URL to a publication-ready bilingual ad kit in five steps — no design tools, no agency retainer required."
+description: "Go from a Google listing URL to a publication-ready bilingual ad kit in five steps — no design tools, no agency retainer, no autoposting."
 ---
 
 Launching a campaign with Leadsy Flock takes about as long as ordering your morning coffee. You paste a URL, review a plan, say YES, and the Flock's AI agents handle the rest. By the end of this guide you will have a complete advertising kit with Meta, WhatsApp, and Google creative ready to paste and upload.
@@ -10,7 +10,7 @@ Launching a campaign with Leadsy Flock takes about as long as ordering your morn
   <Step title="Paste your Google listing URL">
     Open Leadsy Flock and paste the Google listing URL, Google Maps link, or website address for the shop you own into the input form. Flo, the AI director, reads the listing and asks a few quick questions in plain chat — your business name, city, campaign goal, target audience, budget in rupees, and deadline.
 
-    ```
+    ```text
     https://share.google/rLF34cfolz9TJA92F
     ```
 
@@ -30,7 +30,7 @@ Launching a campaign with Leadsy Flock takes about as long as ordering your morn
   </Step>
 
   <Step title="Approve with YES">
-    YES is the expensive door. Nothing runs until you approve. Once you confirm, Leadsy Flock sends a single Pub/Sub message that fans the pipeline out to `flock-worker`. The Veo 3.1 film generation, Gemini Image stills, and Lyria audio sting all begin only after your explicit approval.
+    YES is the expensive door. Nothing runs until you approve. Once you confirm, the pipeline starts asynchronously in the background. The Veo 3.1 film generation, Gemini Image stills, and Lyria audio sting all begin only after your explicit approval.
 
     <Warning>
       Approving a campaign starts billable model calls. Review the plan and price carefully before clicking YES. You can view real-time cost burn at `/dash` once the pipeline starts.
@@ -49,7 +49,7 @@ Launching a campaign with Leadsy Flock takes about as long as ordering your morn
     | Stella | Stella | Builds the consent-first landing page at `/l/{campaign_id}` |
     | Ad Kit | — | Assembles all variants into your paste kit at `/k/{campaign_id}` |
 
-    Each completed step writes a Firestore receipt. If a step fails, the pipeline stops cleanly and you can retry without re-running completed steps.
+    Each completed step is recorded automatically. If a step fails, the pipeline stops cleanly and you can retry without re-running completed steps.
   </Step>
 
   <Step title="Open your paste kit">

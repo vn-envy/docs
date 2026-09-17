@@ -1,10 +1,10 @@
 ---
-title: "How the Leadsy Flock Campaign Pipeline Works"
+title: "Leadsy Flock Campaign Pipeline: Six Steps Explained"
 sidebarTitle: "Pipeline"
-description: "Explore the six-step Pub/Sub-driven pipeline — Scout through Ad Kit — including inputs, outputs, failure handling, and Firestore receipts."
+description: "Explore the six-step async campaign pipeline — Scout through Ad Kit — covering inputs, outputs, failure handling, and step retry behaviour."
 ---
 
-When you approve a campaign, Leadsy Flock sends a single Pub/Sub message to `flock-worker`. That message fans into six sequential pipeline steps, each running asynchronously, each writing a Firestore receipt when it finishes. The pipeline is designed to be safe-by-default: no Veo or Gemini Image calls happen before your YES, and every step is idempotent so a retry never double-spends.
+When you approve a campaign, Leadsy Flock starts six sequential pipeline steps, each running asynchronously in the background. Every step records a status receipt when it finishes. The pipeline is designed to be safe-by-default: no Veo or Gemini Image calls happen before your YES, and every step is idempotent so a retry never double-spends.
 
 ## Pipeline steps
 
@@ -17,7 +17,7 @@ When you approve a campaign, Leadsy Flock sends a single Pub/Sub message to `flo
 
     **Output:** `BrandSpec` (theme, palette, tone, ownUris, competitor insight, ad shelf)
 
-    **On failure:** The pipeline stops. The Firestore receipt records `status: error` with the failure reason. No subsequent steps run. You can trigger a retry from the run room.
+    **On failure:** The pipeline stops. The step receipt records `status: error` with the failure reason. No subsequent steps run. You can trigger a retry from the run room.
   </Step>
 
   <Step title="Inka — Creative production">
@@ -37,7 +37,7 @@ When you approve a campaign, Leadsy Flock sends a single Pub/Sub message to `flo
 
     Harvest polls Veo 3.1 until both 8-second clips (place + proof) are complete, then polls Lyria for the audio sting. Once all media is ready, ffmpeg derives five aspect ratios from the Veo 9:16 master: 4:5 feed, 1:1 square, 9:16 story, 1.91:1 landscape, and 16:9 for the landing page. Audio is muxed onto each clip in both English and Indic VO tracks.
 
-    **Output:** All media slots populated in Cloud Storage — stills, clips, and multi-ratio derivatives
+    **Output:** All media slots populated — stills, clips, and multi-ratio derivatives ready for kit assembly
 
     **On failure:** Harvest retries on a backoff schedule. If Veo times out, the receipt records `status: polling` and the step remains open until the clip arrives or the campaign expires.
   </Step>
@@ -81,9 +81,9 @@ When you approve a campaign, Leadsy Flock sends a single Pub/Sub message to `flo
   </Step>
 </Steps>
 
-## Firestore receipt statuses
+## Step status values
 
-Every step writes a receipt to Firestore as it progresses. You can read receipt status directly from the run room or via `GET /v1/campaigns/{id}`.
+Every pipeline step records a status as it progresses. You can read step status directly from the run room or via `GET /v1/campaigns/{id}`.
 
 | Status | Meaning |
 |--------|---------|
@@ -94,5 +94,5 @@ Every step writes a receipt to Firestore as it progresses. You can read receipt 
 | `error` | The step encountered an unrecoverable error |
 
 <Note>
-  The pipeline is idempotent. If a step already has an `ok` receipt, the worker skips it on retry — you are never charged twice for the same step. To force a step to re-run (for example, if you want new copy after a `blocked_creative`), pass `forceRetry: true` on the relevant step when calling `POST /v1/campaigns/{id}/approve` again.
+  The pipeline is idempotent. If a step already shows `ok`, it is skipped on retry — you are never charged twice for the same step. To force a step to re-run (for example, if you want new copy after a `blocked_creative`), pass `forceRetry: true` when calling `POST /v1/campaigns/{id}/approve` again.
 </Note>

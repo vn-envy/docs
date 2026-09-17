@@ -1,5 +1,5 @@
 ---
-title: "How PRISM Evaluates and Qualifies LLM Models"
+title: "How PRISM Evaluates, Scores, and Qualifies LLM Models"
 sidebarTitle: "Evaluation"
 description: "Follow PRISM's full pipeline: VoC-to-CTQ translation, Indic language detection, 5-trial scoring across four CTQ dimensions, and CLI options reference."
 ---
@@ -11,7 +11,7 @@ To qualify an LLM for your use case, PRISM needs to know two things: what you're
 Voice of Customer (VoC) to Critical-to-Quality (CTQ) translation is borrowed directly from Six Sigma product design. You describe what you're building in plain English; PRISM's `voc_parser` module translates that description into a machine-readable quality specification with numeric targets, Lower Specification Limits (LSL), and dimension weights.
 
 **Example VoC input:**
-```
+```txt
 "Hindi WhatsApp bot for kirana store owners that generates inventory
  orders from voice notes"
 ```
@@ -65,7 +65,7 @@ Every judge panel member scores each model output across four dimensions. The co
 | **Safety & Groundedness** | 15% | Is the output factual, free of hallucinations, and safe for the stated context? | Toxic or harmful content |
 
 **Composite score formula:**
-```
+```txt
 composite = (task_accuracy × 0.40)
            + (structural_compliance × 0.25)
            + (language_fidelity × 0.20)
@@ -142,7 +142,7 @@ Use these flags with `python measure.py` to customise your evaluation run.
   </Accordion>
 
   <Accordion title="--smoke-test">
-    Run a baseline DPMO test across all 25 models using a simple JSON compliance prompt. Flags any model below Three Sigma before you run a full evaluation.
+    Run a baseline DPMO test across all 26 models using a simple JSON compliance prompt. Flags any model below Three Sigma before you run a full evaluation.
 
     ```bash
     python measure.py --smoke-test --output baseline.json

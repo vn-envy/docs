@@ -66,6 +66,10 @@ mem = Smriti(
   When `True`, entity linking uses semantic similarity in addition to exact name matching, improving graph connectivity for paraphrased or abbreviated entity names.
 </ParamField>
 
+<ParamField body="adopt_legacy_embedder" type="bool" default="False">
+  One-time migration flag for databases created before embedder-identity tracking was introduced. Set to `True` to accept the configured embedder as the canonical identity for an existing database, after verifying it matches the embedder originally used to populate that database. Has no effect on new databases.
+</ParamField>
+
 ---
 
 ## Writing memory
@@ -245,6 +249,14 @@ context = mem.context(
     char_budget=4096,
 )
 print(context)
+
+# With session-diversity boosting
+context = mem.context(
+    query="what have I told you about my work?",
+    k=5,
+    session_diverse=True,
+    session_overfetch=3,
+)
 ```
 
 <ParamField body="query" type="str" required>
@@ -255,8 +267,20 @@ print(context)
   Retrieval profile. Defaults to `"auto"`.
 </ParamField>
 
+<ParamField body="k" type="int" default="5">
+  Maximum number of results to retrieve before packing into the context string.
+</ParamField>
+
 <ParamField body="char_budget" type="int" default="8000">
   Maximum character length of the returned context string. Results are packed in relevance order; lower-ranked items are dropped if the budget is exceeded.
+</ParamField>
+
+<ParamField body="session_diverse" type="bool" default="False">
+  Opt-in session-diversity boosting. Spreads results across more distinct source sessions before packing into the context string.
+</ParamField>
+
+<ParamField body="session_overfetch" type="int" default="3">
+  Multiplier for internal overfetching when `session_diverse=True`. Fetch `k × session_overfetch` candidates, then select the most diverse `k`.
 </ParamField>
 
 **Returns:** `str` — a plain-text context block with validity annotations, ready to prepend to a prompt.
@@ -380,9 +404,9 @@ mem2.import_json("backup-2026-06-01.json")
   File path for the JSON export or import.
 </ParamField>
 
-<Warning>
-Core JSON export does not include enterprise governance metadata (retention holds, audit sinks, verified packs). For enterprise backups, use `enterprise_mem.snapshot(path)` or `enterprise_mem.build_pack(path, name=...)`.
-</Warning>
+<Note>
+`export_json` / `import_json` covers the full core schema — episodes, facts, supersession chains, and embeddings. It is the recommended path for migrating between embedders or creating portable backups of your memory store.
+</Note>
 
 ---
 

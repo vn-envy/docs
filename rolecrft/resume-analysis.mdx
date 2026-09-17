@@ -1,17 +1,17 @@
 ---
-title: "How Rolecrft Scores and Rewrites Your Resume"
+title: "Rolecrft Resume Analysis: Scoring, AI Edits, ATS Scan"
 sidebarTitle: "Resume Analysis"
-description: "Understand Rolecrft's 8-category rubric, dual ATS/HM scores, AI resume change tags, one-click ATS keyword injection, and the Action Plan score simulator."
+description: "Understand Rolecrft's 8-category scoring rubric, dual ATS/HM scores, AI resume change tags, one-click ATS keyword injection, and the score simulator."
 ---
 
 Rolecrft's resume analysis does two things that most tools don't: it scores your resume against the specific job description you submitted (not generic criteria), and it edits your existing bullets rather than rewriting them from scratch. Every change is tagged so you know exactly what the AI touched, what it preserved, and why — giving you full control over the final document.
 
 ## The 8-Category Scoring Rubric
 
-Your resume is scored against a 100-point rubric calibrated to the specific job description. The rubric runs twice — once through an ATS lens (keyword and structure matching) and once through a hiring-manager lens (narrative quality and fit). Both scores appear on your Analysis tab.
+Your resume is scored against a 100-point rubric calibrated to the specific job description. The rubric runs twice — once through an ATS lens (keyword and structure matching) and once through a hiring-manager lens (narrative quality and fit). Both scores appear on your Runway Check tab.
 
 | Category | Max Points | What It Measures |
-|----------|-----------|-----------------|
+|----------|-----------|--------------------|
 | **Must-Have Coverage** | 30 | Do your stated skills and experience cover the explicit requirements listed as required or must-have in the JD? |
 | **Impact Metrics** | 15 | Does your resume quantify achievements with numbers, percentages, or dollar values? |
 | **Seniority & Scope** | 10 | Does the scale of your past work match the seniority level and team/budget scope of the target role? |
@@ -21,24 +21,28 @@ Your resume is scored against a 100-point rubric calibrated to the specific job 
 | **Tonality Fit** | 8 | Does your language register match the company's communication style (e.g., startup-casual vs. enterprise-formal)? |
 | **Differentiators** | 5 | Do you have anything genuinely unusual — patents, publications, relevant side projects, elite awards? |
 
-### Status Thresholds
+### Clearance Status
 
-Your combined score produces one of three statuses:
+Rolecrft derives two separate scores from the rubric — an ATS score and a hiring-manager (HM) score — and combines them to assign one of three clearance statuses:
 
-| Status | Threshold | Meaning |
-|--------|-----------|---------|
-| **Cleared** ✅ | ≥ 75 points | Your resume is competitive for this role. Proceed to interviews with confidence. |
-| **Conditional** ⚠️ | 55–74 points | Your resume is viable but has specific gaps. Complete the Action Plan before applying. |
-| **Grounded** 🔴 | < 55 points | Significant qualification or presentation gaps exist. The Action Plan is essential before applying. |
+| Status | Meaning |
+|--------|---------|
+| **Cleared** ✅ | Your resume is competitive for this role. Both ATS and HM scores are strong. Proceed to interviews with confidence. |
+| **Conditional** ⚠️ | Your resume is viable but has specific gaps in one or more categories. Complete the Action Plan before applying. |
+| **Grounded** ⛔ | Significant qualification or presentation gaps exist. The Action Plan is essential before applying. |
+
+<Note>
+  The clearance status reflects both your ATS score and your hiring-manager score together. A resume that scores well on keywords but poorly on narrative quality — or vice versa — may still show Conditional or Grounded. The goal is to optimise both without sacrificing either.
+</Note>
 
 ## The Dual ATS/Hiring-Manager Score
 
 Rolecrft generates two separate scores because ATS systems and human reviewers evaluate resumes differently:
 
-- **ATS Score**: Weighted toward keyword presence, structural clarity, and section labelling. A resume optimised only for ATS can read mechanically to a human.
-- **HM Score**: Weighted toward narrative coherence, impact metrics, and authentic achievement framing. A resume great for humans may lack the explicit keywords an ATS needs.
+- **ATS Score**: Weighted toward keyword presence (Must-Have Coverage, ATS Structure, Domain & Tooling) and responsibilities alignment. A resume optimised only for ATS can read mechanically to a human.
+- **HM Score**: Weighted toward narrative coherence, impact metrics, seniority signals, and authentic achievement framing. A resume great for humans may lack the explicit keywords an ATS needs.
 
-The goal is to optimise both without sacrificing either. Rolecrft's AI transformation and ATS keyword scan work together toward this balance.
+Rolecrft's AI transformation and ATS keyword scan work together to close gaps in both dimensions simultaneously.
 
 ## How the AI Transformation Works
 
@@ -69,7 +73,7 @@ After transformation, Rolecrft shows a **change log** summarising how many bulle
 
 ## ATS Keyword Scan
 
-The ATS keyword scan runs entirely client-side with zero additional LLM cost. Rolecrft extracts every skill, tool, and technology mentioned in the job description and checks each one against your transformed resume using alias matching.
+The ATS keyword scan runs entirely client-side. Rolecrft extracts every skill, tool, and technology mentioned in the job description and checks each one against your transformed resume using alias matching.
 
 **Alias matching examples:**
 - `k8s` = `kubernetes`
@@ -84,11 +88,11 @@ For each missing keyword, Rolecrft shows:
 
 When you inject a keyword, Rolecrft recalculates your ATS score live so you can see the impact of each addition before exporting.
 
-## Score Simulator in the Action Plan Tab
+## Score Simulator in the Launch Pad Tab
 
-The Action Plan tab gives you a prioritised list of improvements tagged as `quick_win`, `medium_term`, or `strategic`. Every action includes an estimated score impact, time commitment, and cost.
+The Launch Pad tab gives you a prioritised list of improvements tagged as `quick_win`, `medium_term`, or `strategic`. Every action includes an estimated score impact, the gap it closes, and a suggested future resume line.
 
-Check the checkbox next to any action and the **projected score** updates in real time — showing your estimated new ATS and HM scores if you complete that action. Use this to decide which improvements deliver the best return for your available time before you apply.
+Check the checkbox next to any action and the **projected score** updates in real time — showing your estimated new score if you complete that action. Use this to decide which improvements deliver the best return for your available time before you apply.
 
 <Tip>
   Start with **quick_win** actions first — they typically require one to two hours and can move your score by 5–15 points. **strategic** actions (courses, certifications, side projects) are worth pursuing but shouldn't delay your application.

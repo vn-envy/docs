@@ -1,5 +1,5 @@
 ---
-title: "Four-Channel Hybrid Retrieval in Smriti"
+title: "Smriti Four-Channel Hybrid Retrieval and Named Profiles"
 sidebarTitle: "Retrieval"
 description: "Learn how Smriti's four retrieval channels fuse via Reciprocal Rank Fusion and how named profiles let you shape every search to your query's intent."
 ---
@@ -145,7 +145,7 @@ results = mem.search("find DB migration steps", channels={"shabda", "sambandha"}
 
 ## Custom Retrieval Profiles
 
-Profiles are plain data objects — create one by instantiating `RetrievalProfile` with the fields you want to tune. You can benchmark any custom profile against the built-ins using the shipped `bench/ab.sh` harness.
+Profiles are plain data objects — create one by instantiating `RetrievalProfile` with the fields you want to tune. You can benchmark any custom profile against the built-ins using the included A/B benchmarking harness that ships with Smriti.
 
 ```python
 from smriti import Smriti, RetrievalProfile
@@ -203,5 +203,5 @@ results = mem.search("who is connected to the Bengaluru office?",
 </CodeGroup>
 
 <Tip>
-  Run `bash bench/ab.sh` to A/B your custom profile against any built-in on your own conversation data. Evidence over intuition — the harness prints the accuracy delta so you know whether a profile change actually helps your workload.
+  Use the included A/B benchmarking harness to compare your custom profile against any built-in on your own conversation data. The harness prints the accuracy delta so you know whether a profile change actually helps your workload.
 </Tip>

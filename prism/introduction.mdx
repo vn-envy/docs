@@ -1,5 +1,5 @@
 ---
-title: "PRISM: Six Sigma LLM Qualification Engine"
+title: "PRISM: Six Sigma LLM Qualification Engine for Teams"
 sidebarTitle: "Introduction"
 description: "PRISM applies industrial Six Sigma SPC to LLM selection — measure process capability with Cpk, DPMO, and Gauge R&R instead of leaderboard averages."
 ---
@@ -51,16 +51,16 @@ Cpk is the Process Capability Index — the number of standard deviations betwee
 For every candidate model evaluated against your intent, PRISM computes a full Six Sigma quality report:
 
 <CardGroup cols={2}>
-  <Card title="Cpk" icon="gauge">
+  <Card title="Cpk" icon="gauge" href="/prism/six-sigma-methodology#cpk-the-process-capability-index">
     Process Capability Index. Measures how far your model's mean score sits above your quality floor, in sigma units. The primary ranking signal.
   </Card>
-  <Card title="DPMO" icon="bug">
+  <Card title="DPMO" icon="bug" href="/prism/six-sigma-methodology#dpmo-defects-per-million-opportunities">
     Defects Per Million Opportunities. A universal Six Sigma metric that tells you exactly how many of a million LLM calls will fall below spec.
   </Card>
-  <Card title="Gauge R&R" icon="scale-balanced">
+  <Card title="Gauge R&R" icon="scale-balanced" href="/prism/gauge-rr">
     Measurement system reliability. Validates that the 3-judge scoring panel agrees before trusting its verdicts. Must be below 30%.
   </Card>
-  <Card title="MatchScore" icon="star">
+  <Card title="MatchScore" icon="star" href="/prism/six-sigma-methodology#the-matchscore-formula">
     Bayesian posterior blending 70% measured results with 30% HuggingFace leaderboard priors. The final ranking metric.
   </Card>
 </CardGroup>

@@ -36,7 +36,7 @@ Narad's voice mode keeps your audio entirely on-device — no cloud transcriptio
   </Step>
 
   <Step title="Click the microphone in the UI">
-    Open the Narad web interface at `http://127.0.0.1:5173`. A microphone button appears in the chat toolbar. Click it to start recording. When you release, faster-whisper transcribes your audio locally and sends the text as your message. Narad's response is then synthesised through the best available TTS engine and played back in your browser.
+    Open the Narad web interface at `http://127.0.0.1:8000`. A microphone button appears in the chat toolbar. Click it to start recording. When you release, faster-whisper transcribes your audio locally and sends the text as your message. Narad's response is then synthesised through the best available TTS engine and played back in your browser.
 
     <Note>
       If faster-whisper is not installed, the frontend falls back to the browser's built-in Web Speech API for transcription. TTS playback still uses whichever local engine is available.
@@ -121,7 +121,7 @@ Each avatar has a dedicated voice in both English and Hindi. Kokoro uses fixed v
 | Krishna | `am_michael` | `hm_omega` |
 | Rama | `am_adam` | `hm_psi` |
 | Parashurama | `am_onyx` | `hm_omega` |
-| Hanuman | `am_puck` | `hm_psi` |
+| Matsya | `am_puck` | `hm_psi` |
 | Narad | `am_liam` | `hm_omega` |
 
 To use zero-shot cloning with VoxCPM, place `<avatar>.wav` and `<avatar>.txt` (the transcript of that audio) in the directory you set for `NARAD_VOICE_REF_DIR`. If those files are absent, VoxCPM falls back to its default voice.

@@ -1,10 +1,10 @@
 ---
-title: "PRISM Model Catalog: 25 Pre-Evaluated Candidate Models"
+title: "PRISM Model Catalog: 26 Pre-Evaluated Candidate Models"
 sidebarTitle: "Model Catalog"
-description: "Browse all 25 models in PRISM's catalog with provider, parameter count, hardware tier, and HuggingFace prior scores used as Bayesian starting points."
+description: "Browse all 26 models in PRISM's catalog with provider, parameter count, hardware tier, and HuggingFace prior scores used as Bayesian starting points."
 ---
 
-PRISM maintains a catalog of 25 candidate models drawn from public open-weight releases and commercial APIs. Every model in the catalog has an archived HuggingFace leaderboard score for each of the four capability pillars. These scores serve as Bayesian priors — they provide a reasonable starting estimate before live trials begin, and they contribute 30% of the final MatchScore, with the remaining 70% coming from your measured evaluation.
+PRISM maintains a catalog of 26 candidate models drawn from public open-weight releases and commercial APIs. Every model in the catalog has an archived HuggingFace leaderboard score for each of the four capability pillars. These scores serve as Bayesian priors — they provide a reasonable starting estimate before live trials begin, and they contribute 30% of the final MatchScore, with the remaining 70% coming from your measured evaluation.
 
 ## How HuggingFace Priors Work
 
@@ -12,7 +12,7 @@ When PRISM receives your intent, it selects the most relevant candidate models f
 
 After measurement, the prior blends with the measured result:
 
-```
+```txt
 posterior_μ = 0.30 × hf_prior_score  +  0.70 × measured_μ
 ```
 
@@ -68,6 +68,7 @@ Each model's prior score covers four pillars. PRISM uses the pillar-specific pri
 | `ai21labs/Jamba-1.5-Large` | Jamba 1.5 Large | AI21 | 94 | high | 76.2 |
 | `databricks/dbrx-instruct` | DBRX 132B | Databricks | 132 | high | 74.4 |
 | `upstage/SOLAR-10.7B-Instruct-v1.0` | SOLAR 10.7B | Together AI | 10.7 | low | 65.0 |
+| `tiiuae/falcon-180B-chat` | Falcon 180B | Together AI | 180 | high | 69.7 |
 | `Nexusflow/Starling-LM-7B-beta` | Starling 7B | Together AI | 7 | low | 63.5 |
 | `teknium/OpenHermes-2.5-Mistral-7B` | OpenHermes 2.5 7B | Together AI | 7 | low | 64.6 |
 
@@ -76,12 +77,12 @@ Each model's prior score covers four pillars. PRISM uses the pillar-specific pri
 Two models in the catalog are purpose-built for Indian languages. When your intent contains Indic language keywords, PRISM automatically elevates these models into the candidate pool regardless of their general-purpose ranking.
 
 <CardGroup cols={2}>
-  <Card title="Sarvam-M 24B" icon="language">
+  <Card title="Sarvam-M 24B" icon="language" href="https://www.sarvam.ai/apis">
     **Provider**: Sarvam AI · **Tier**: mid · **24B parameters**
 
     Supports Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, and Odia. Language fidelity prior of 89.5 — the highest in the catalog. Recommended for production Indic language applications requiring both quality and cost efficiency.
   </Card>
-  <Card title="Sarvam 2B" icon="language">
+  <Card title="Sarvam 2B" icon="language" href="https://www.sarvam.ai/apis">
     **Provider**: Sarvam AI · **Tier**: low · **2B parameters**
 
     Same 10-language coverage as Sarvam-M 24B at a fraction of the cost ($0.0004/1K tokens, ~400 ms latency). Language fidelity prior of 82.4. Use this model for high-volume, latency-sensitive Indic applications where cost is the primary constraint.

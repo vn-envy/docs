@@ -1,5 +1,5 @@
 ---
-title: "Bi-Temporal Memory: Updates Without Deletion"
+title: "Smriti Bi-Temporal Memory: Updates Without Deletion"
 sidebarTitle: "Bi-Temporal"
 description: "Understand how Smriti uses validity windows to supersede outdated facts while preserving full history, enabling both current-state and as-of queries."
 ---
@@ -186,7 +186,7 @@ print(result)
 Because every superseded fact keeps its `invalid_at` and `superseded_by` fields, you can walk the full chain of updates for any claim. This is the audit trail that lets you answer "when did our agent's belief about X change, and what triggered each update?"
 
 ```python
-from smriti import Smriti
+from smriti import Smriti, LLM, OllamaEmbedder
 
 mem = Smriti(path="memory.db",
              embedder=OllamaEmbedder("nomic-embed-text"),

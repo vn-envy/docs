@@ -113,7 +113,7 @@ mem = Smriti(
 Use this guide to pick the embedder that fits your situation:
 
 <CardGroup cols={3}>
-  <Card title="HashEmbedder" icon="bolt">
+  <Card title="HashEmbedder" icon="bolt" href="/smriti/embedders#hashembedder">
     **Choose this when you need:**
     - Fully offline operation with no model files
     - Fast CI tests with deterministic behavior
@@ -121,7 +121,7 @@ Use this guide to pick the embedder that fits your situation:
 
     **Trade-off:** Semantic search quality is low. Switch to a neural embedder before evaluating retrieval accuracy.
   </Card>
-  <Card title="OllamaEmbedder" icon="server">
+  <Card title="OllamaEmbedder" icon="server" href="/smriti/embedders#ollamaembedder">
     **Choose this when you need:**
     - High semantic quality without sending data to a cloud provider
     - Local development on a machine with a GPU or Apple Silicon
@@ -129,7 +129,7 @@ Use this guide to pick the embedder that fits your situation:
 
     **Trade-off:** Requires Ollama running locally and the model pre-pulled.
   </Card>
-  <Card title="OpenAICompatEmbedder" icon="cloud">
+  <Card title="OpenAICompatEmbedder" icon="cloud" href="/smriti/embedders#openaicompatembedder">
     **Choose this when you need:**
     - Managed cloud embeddings (OpenAI, Azure, Groq)
     - A self-hosted vLLM or LM Studio endpoint

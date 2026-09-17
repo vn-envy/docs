@@ -1,5 +1,5 @@
 ---
-title: "Understanding Smriti's Two Memory Primitives"
+title: "Smriti Memory Model: Episodes, Facts, and Lite/Full Modes"
 sidebarTitle: "Memory Model"
 description: "Explore Episodes and Facts — the two primitive types that power Smriti's memory layer — and choose the right operating mode for your agent."
 ---
@@ -139,7 +139,7 @@ for r in results:
 Smriti operates in two modes. You set the mode when you create the `Smriti` instance; you cannot change it mid-session.
 
 <CardGroup cols={2}>
-  <Card title="lite — laghu (लघु)" icon="feather">
+  <Card title="lite — laghu (लघु)" icon="feather" href="/smriti/introduction">
     **Best for:** cost-sensitive deployments, fully offline agents, or situations where write-time model access is unavailable.
 
     - Zero LLM calls at write time
@@ -156,7 +156,7 @@ Smriti operates in two modes. You set the mode when you create the `Smriti` inst
     mem = Smriti(path="memory.db", mode="laghu")
     ```
   </Card>
-  <Card title="full — purna (पूर्ण)" icon="database">
+  <Card title="full — purna (पूर्ण)" icon="database" href="/smriti/introduction">
     **Best for:** long-running agents that need to track evolving facts and answer questions like "where do I live now?" versus "where did I live before June?"
 
     - One LLM extraction call per session (ordinary path)

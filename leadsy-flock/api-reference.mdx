@@ -1,5 +1,5 @@
 ---
-title: "Leadsy Flock API Reference"
+title: "Leadsy Flock API Reference: Campaigns, Media, and Safety"
 sidebarTitle: "API Reference"
 description: "Complete reference for Leadsy Flock's JSON API — campaign creation, approval, consent recording, media slots, and Flo's ADK tools for developers."
 ---
@@ -81,7 +81,7 @@ data = response.json()
 
 **Response**
 
-<ResponseField name="campaign_id" type="string">
+<ResponseField name="id" type="string">
   Unique campaign identifier. Used in all subsequent API calls and in the UI URLs (`/r/{id}`, `/k/{id}`, `/l/{id}`).
 </ResponseField>
 
@@ -89,27 +89,24 @@ data = response.json()
   Campaign status at creation. Always `"planned"` on a successful POST.
 </ResponseField>
 
-<ResponseField name="plan" type="object">
+<ResponseField name="engineConfig" type="object">
   Campaign plan returned by Bri.
 
-  <Expandable title="plan fields">
-    <ResponseField name="plan.bundle" type="string">
-      Recommended bundle: `"find"`, `"launch"`, or `"full"`.
-    </ResponseField>
-    <ResponseField name="plan.agents" type="array">
+  <Expandable title="engineConfig fields">
+    <ResponseField name="engineConfig.hired" type="array">
       List of agent names that will run (for example, `["scout", "inka", "stella"]`).
     </ResponseField>
-    <ResponseField name="plan.price_inr" type="integer">
-      Total campaign price in Indian rupees.
+    <ResponseField name="engineConfig.pipeline" type="array">
+      Ordered list of worker steps to execute.
     </ResponseField>
-    <ResponseField name="plan.price_breakdown" type="object">
-      Per-agent cost breakdown. Keys are agent names; values are rupee amounts.
+    <ResponseField name="engineConfig.price_inr" type="integer">
+      Total campaign price in Indian rupees.
     </ResponseField>
   </Expandable>
 </ResponseField>
 
-<ResponseField name="run_room_url" type="string">
-  Full URL to the live run room: `/r/{campaign_id}`.
+<ResponseField name="runPath" type="string">
+  Path to the live run room: `/r/{id}?k=…`. Append your session key to access the run room in the browser.
 </ResponseField>
 
 ---
@@ -139,7 +136,7 @@ response = httpx.post(
 
 **Response**
 
-<ResponseField name="campaign_id" type="string">
+<ResponseField name="id" type="string">
   The campaign ID that was approved.
 </ResponseField>
 
@@ -147,8 +144,12 @@ response = httpx.post(
   Always `"running"` on a successful approval.
 </ResponseField>
 
-<ResponseField name="pubsub_message_id" type="string">
-  ID of the Pub/Sub message sent to `campaign-steps`. Use this to correlate with Cloud Trace spans.
+<ResponseField name="pipeline" type="array">
+  Ordered list of worker steps that will run for this campaign.
+</ResponseField>
+
+<ResponseField name="runPath" type="string">
+  Path to the live run room: `/r/{id}?k=…`.
 </ResponseField>
 
 ---
@@ -183,7 +184,7 @@ response = httpx.get(f"https://your-flock-domain/v1/campaigns/{campaign_id}")
 </ResponseField>
 
 <ResponseField name="receipts" type="array">
-  Array of Firestore receipt objects, one per pipeline step.
+  Array of step receipt objects, one per pipeline step.
 
   <Expandable title="receipt fields">
     <ResponseField name="receipts[].step" type="string">
@@ -195,8 +196,8 @@ response = httpx.get(f"https://your-flock-domain/v1/campaigns/{campaign_id}")
     <ResponseField name="receipts[].timestamp" type="string">
       ISO 8601 timestamp of the last status update.
     </ResponseField>
-    <ResponseField name="receipts[].trace_id" type="string">
-      Cloud Trace trace ID for this step span. Use with `/trace` or Cloud Trace Explorer.
+    <ResponseField name="receipts[].traceId" type="string">
+      Trace ID for this step span. Use with `/trace` to view the full execution path.
     </ResponseField>
   </Expandable>
 </ResponseField>
@@ -234,18 +235,16 @@ Call this endpoint when a visitor submits the Stella landing page opt-in form. T
 curl -X POST https://your-flock-domain/v1/consents \
   -H "Content-Type: application/json" \
   -d '{
-    "campaign_id": "google-listing-eaf57cae",
+    "campaignId": "google-listing-eaf57cae",
     "name": "Priya Sharma",
-    "phone": "+91 98765 43210",
+    "contact": "+91 98765 43210",
     "consent": true,
-    "utm_source": "meta",
-    "utm_medium": "paid",
-    "utm_content": "meta_feed"
+    "source": "meta_feed"
   }'
 ```
 </CodeGroup>
 
-<ParamField body="campaign_id" type="string" required>
+<ParamField body="campaignId" type="string" required>
   The campaign this consent record belongs to.
 </ParamField>
 
@@ -253,42 +252,30 @@ curl -X POST https://your-flock-domain/v1/consents \
   Visitor's name as entered in the opt-in form.
 </ParamField>
 
-<ParamField body="phone" type="string">
-  Visitor's phone number (optional but required for Ray outreach).
-</ParamField>
-
-<ParamField body="email" type="string">
-  Visitor's email address (optional).
+<ParamField body="contact" type="string" required>
+  Visitor's phone number or email address. Required alongside `name` — used by Ray for follow-up if the campaign includes outreach.
 </ParamField>
 
 <ParamField body="consent" type="boolean" required>
   Must be `true`. The API rejects requests with `consent: false` or without this field.
 </ParamField>
 
-<ParamField body="utm_source" type="string">
-  UTM source from the landing page URL (for example, `"meta"`).
-</ParamField>
-
-<ParamField body="utm_medium" type="string">
-  UTM medium (for example, `"paid"`).
-</ParamField>
-
-<ParamField body="utm_content" type="string">
-  UTM content slot (for example, `"meta_feed"`).
+<ParamField body="source" type="string">
+  Describes where the opt-in came from (for example, `"meta_feed"`, `"landing"`, `"whatsapp_status"`). Defaults to `"landing"`.
 </ParamField>
 
 **Response**
 
-<ResponseField name="consent_id" type="string">
-  Unique ID for this consent record. Stored in Firestore.
+<ResponseField name="id" type="string">
+  Unique ID for this consent record.
 </ResponseField>
 
-<ResponseField name="campaign_id" type="string">
+<ResponseField name="campaignId" type="string">
   The campaign this record belongs to.
 </ResponseField>
 
-<ResponseField name="recorded_at" type="string">
-  ISO 8601 timestamp of when consent was recorded.
+<ResponseField name="ok" type="boolean">
+  `true` when consent was recorded successfully.
 </ResponseField>
 
 ---
@@ -369,12 +356,12 @@ curl -X POST https://your-flock-domain/v1/screen \
 
 **Response**
 
-<ResponseField name="safe" type="boolean">
-  `true` if the text passes Model Armor and the Ledge regex check. `false` if it contains prohibited content.
+<ResponseField name="allowed" type="boolean">
+  `true` if the text passes the safety check. `false` if it contains prohibited content.
 </ResponseField>
 
-<ResponseField name="flags" type="array">
-  Array of flag objects, each with `rule` (the regex or classifier rule that fired) and `excerpt` (the flagged substring).
+<ResponseField name="verdict" type="object">
+  The safety verdict object. When `allowed` is `false`, the verdict describes what was blocked.
 </ResponseField>
 
 ---

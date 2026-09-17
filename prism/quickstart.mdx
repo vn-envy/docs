@@ -1,5 +1,5 @@
 ---
-title: "Run Your First PRISM Model Evaluation in Minutes"
+title: "Run Your First PRISM Evaluation in Under 5 Minutes"
 sidebarTitle: "Quickstart"
 description: "Get PRISM running in demo mode without any API keys, interpret your first Cpk report, then go live with full model inference in four steps."
 ---
@@ -62,7 +62,7 @@ PRISM ships with a demo mode that returns realistic Six Sigma statistics without
   <Step title="Interpret the output">
     PRISM prints a ranked table to the console and writes the full JSON to your output file. Here is a sample console output:
 
-    ```
+    ```txt
     ======================================================================
       PRISM RESULTS — Process Capability Report
     ======================================================================
@@ -108,6 +108,7 @@ PRISM ships with a demo mode that returns realistic Six Sigma statistics without
     ```env
     ANTHROPIC_API_KEY=sk-ant-...
     OPENAI_API_KEY=sk-...
+    GOOGLE_API_KEY=...
     GROQ_API_KEY=gsk_...
     TOGETHER_API_KEY=...
     DEEPSEEK_API_KEY=...
@@ -136,7 +137,7 @@ PRISM ships with a demo mode that returns realistic Six Sigma statistics without
 | `--lsl` | `70` | Lower Specification Limit — your minimum acceptable score (0–100) |
 | `--candidates` | `5` | Maximum number of candidate models to evaluate |
 | `--output` | *(none)* | Path to write results JSON |
-| `--smoke-test` | — | Run baseline JSON compliance DPMO test across all 25 models |
+| `--smoke-test` | — | Run baseline JSON compliance DPMO test across all 26 models |
 
 <Tip>
   Set `--lsl` to match your actual quality requirement. If you need 85% accuracy for your use case, pass `--lsl 85`. A tighter LSL will produce lower Cpk scores and expose models that can't reliably meet your bar, even if they look fine on leaderboards.
